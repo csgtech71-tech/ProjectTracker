@@ -344,11 +344,17 @@ export const ProjectTracking: React.FC<Props> = ({
       if (deviceForm.macAddress !== undefined) updates.mac_address = deviceForm.macAddress || null;
       if (deviceForm.notes !== undefined) updates.notes = deviceForm.notes || null;
 
-      const { error } = await supabase
+      // Race the Supabase call against a 10s timeout so we never hang forever
+      const updatePromise = supabase
         .from('hardware_nodes')
         .update(updates)
         .eq('id', editingNode.id);
 
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Check Supabase RLS policies allow updates on hardware_nodes.')), 10000)
+      );
+
+      const { error } = await Promise.race([updatePromise, timeoutPromise]) as { error: any };
       if (error) throw new Error(error.message);
 
       // Update local state with camelCase fields
