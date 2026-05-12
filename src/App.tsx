@@ -51,6 +51,8 @@ export default function App() {
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(DEFAULT_SETTINGS);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const [newProject, setNewProject] = useState({
     title: '',
@@ -90,14 +92,15 @@ export default function App() {
   }, []);
 
   const handleCreateProject = async () => {
-    if (!newProject.title || !newProject.customerName) {
-      alert('Project title and customer name are required.');
+    setCreateError('');
+    if (!newProject.title.trim() || !newProject.customerName.trim()) {
+      setCreateError('Project title and customer name are required.');
       return;
     }
     const project: Project = {
       id: crypto.randomUUID(),
-      title: newProject.title,
-      customerName: newProject.customerName,
+      title: newProject.title.trim(),
+      customerName: newProject.customerName.trim(),
       projectOverview: newProject.projectOverview,
       deploymentType: newProject.deploymentType,
       locations: [],
@@ -134,12 +137,14 @@ export default function App() {
       hardwareNodes: [],
       customerSentiment: 'happy',
     };
+    setIsCreating(true);
     try {
       const created = await projectService.create(project);
       setProjects((prev) => [created, ...prev]);
       setActiveProjectId(created.id);
       setActiveTab('summary');
       setIsCreateModalOpen(false);
+      setCreateError('');
       setNewProject({
         title: '',
         customerName: '',
@@ -150,7 +155,9 @@ export default function App() {
         sowCost: 7500,
       });
     } catch (e) {
-      alert('Failed to create project. Check your Supabase connection.');
+      setCreateError(e instanceof Error ? e.message : 'Failed to create project. Check your Supabase connection.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -449,9 +456,18 @@ export default function App() {
               </div>
             </div>
 
+            {createError && (
+              <div className="px-10 pb-0 shrink-0">
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-xs text-red-600 font-bold flex items-center gap-2">
+                  <span>{createError}</span>
+                </div>
+              </div>
+            )}
             <div className="p-10 bg-slate-50 border-t flex justify-end gap-4 shrink-0">
-              <button onClick={() => setIsCreateModalOpen(false)} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest">Cancel</button>
-              <button onClick={handleCreateProject} className="px-10 py-4 bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all">Establish Charter</button>
+              <button onClick={() => { setIsCreateModalOpen(false); setCreateError(''); }} className="px-6 py-3 text-slate-400 font-black text-xs uppercase tracking-widest">Cancel</button>
+              <button onClick={handleCreateProject} disabled={isCreating} className="px-10 py-4 bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all flex items-center gap-2 disabled:opacity-50">
+                {isCreating ? <><RefreshCw size={14} className="animate-spin" /> Creating...</> : 'Establish Project'}
+              </button>
             </div>
           </div>
         </div>
