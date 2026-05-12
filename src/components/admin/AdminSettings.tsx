@@ -155,7 +155,7 @@ export const AdminSettings: React.FC<Props> = ({
   useEffect(() => {
     if (!isAdmin) return;
     setLoadingUsers(true);
-    authService.listAppUsers().then(setAppUsers).finally(() => setLoadingUsers(false));
+    authService.listAppUsers().then(setAppUsers).catch((e) => console.error("listAppUsers:", e)).finally(() => setLoadingUsers(false));
   }, [isAdmin]);
 
   const handleSave = async () => {
