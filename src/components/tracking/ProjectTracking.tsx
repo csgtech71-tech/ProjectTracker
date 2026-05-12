@@ -123,6 +123,27 @@ const Section: React.FC<{ title: string; children: React.ReactNode; defaultOpen?
   );
 };
 
+// ─── DB row → HardwareNode (snake_case → camelCase) ─────────────────────────
+function rowToNode(row: Record<string, unknown>): HardwareNode {
+  return {
+    id: row.id as string,
+    project_id: row.project_id as string | undefined,
+    friendlyName: row.friendly_name as string | undefined,
+    serialNumber: row.serial_number as string | undefined,
+    macAddress: row.mac_address as string | undefined,
+    locationId: row.location_id as string | undefined,
+    installDate: row.install_date as string | undefined,
+    status: (row.status as HardwareNode['status']) || 'active',
+    authType: row.auth_type as HardwareNode['authType'] | undefined,
+    firmware: row.firmware as string | undefined,
+    ipAddress: row.ip_address as string | undefined,
+    wifiSsid: row.wifi_ssid as string | undefined,
+    notes: row.notes as string | undefined,
+    lastSeen: row.last_seen as string | undefined,
+    certExpires: row.cert_expires as string | undefined,
+  };
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 export const ProjectTracking: React.FC<Props> = ({
   project, onUpdate, currentUser,
@@ -177,7 +198,7 @@ export const ProjectTracking: React.FC<Props> = ({
         setSystemEvents(se);
         setLogImports(li);
         if (ds) setDisplaySettings({ ...DEFAULT_ANALYTICS_SETTINGS, ...ds });
-        if (nodesRes.data) setHardwareNodes(nodesRes.data as HardwareNode[]);
+        if (nodesRes.data) setHardwareNodes(nodesRes.data.map(rowToNode));
       })
       .catch(console.error)
       .finally(() => setIsLoading(false));
@@ -296,7 +317,7 @@ export const ProjectTracking: React.FC<Props> = ({
     setAccessEvents(ae);
     setSystemEvents(se);
     setLogImports(li);
-    if (nodesRes.data) setHardwareNodes(nodesRes.data as HardwareNode[]);
+    if (nodesRes.data) setHardwareNodes(nodesRes.data.map(rowToNode));
 
     setIsIngesting(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
