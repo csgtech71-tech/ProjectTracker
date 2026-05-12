@@ -3,7 +3,7 @@ import {
   Upload, Activity, AlertTriangle, CheckCircle2, Clock, Users,
   Fingerprint, CreditCard, Hash, Shield, Server, Wifi, RefreshCw,
   Trash2, ChevronDown, ChevronUp, Eye, EyeOff, Settings2, Download,
-  Calendar, Filter, X, Database, Zap, Lock
+  Calendar, Filter, X, Database, Zap, Lock, Edit2, MapPin, Save, Cpu
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
@@ -15,7 +15,7 @@ import {
 } from '../../services/logIngestionService';
 import type {
   Project, AppUser, AccessEvent, SystemEvent, LogImport,
-  AnalyticsDisplaySettings, HardwareNode,
+  AnalyticsDisplaySettings, HardwareNode, HardwareAuthType, ProjectLocation,
 } from '../../types';
 import { DEFAULT_ANALYTICS_SETTINGS } from '../../types';
 import { supabase } from '../../services/supabaseClient';
@@ -119,6 +119,130 @@ const Section: React.FC<{ title: string; children: React.ReactNode; defaultOpen?
         {open ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
       </button>
       {open && <div className="px-8 pb-8">{children}</div>}
+
+      {/* Device Edit Modal */}
+      {showDeviceModal && editingNode && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Edit Device</h3>
+                <p className="text-[10px] font-mono text-slate-400 mt-0.5">{editingNode.id}</p>
+              </div>
+              <button onClick={() => setShowDeviceModal(false)} className="text-slate-400 hover:text-black transition-colors"><X size={22} /></button>
+            </div>
+
+            <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Device Name</label>
+                <input
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
+                  placeholder="e.g. Main Floor Safe, ICU Cabinet A"
+                  value={deviceForm.friendlyName || ''}
+                  onChange={e => setDeviceForm(f => ({ ...f, friendlyName: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Location</label>
+                <select
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
+                  value={deviceForm.locationId || ''}
+                  onChange={e => setDeviceForm(f => ({ ...f, locationId: e.target.value }))}
+                >
+                  <option value="">— Unassigned —</option>
+                  {project.locations.map(loc => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+                {project.locations.length === 0 && (
+                  <p className="text-[10px] text-amber-600 font-bold">No locations defined yet — add them on the Summary tab first.</p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Auth Method</label>
+                <select
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
+                  value={deviceForm.authType || ''}
+                  onChange={e => setDeviceForm(f => ({ ...f, authType: e.target.value as HardwareAuthType }))}
+                >
+                  <option value="">— Unknown —</option>
+                  {[
+                    'Card Only',
+                    'Card + Pin',
+                    'Card/User Id/Fingerprint',
+                    'Card/User Id + Pin',
+                    'Card/User Id + Fingerprint',
+                    'Card/User Id + Fingerprint (Pin Fallback)',
+                    'Fingerprint Only',
+                  ].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['active', 'maintenance', 'offline'] as const).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setDeviceForm(f => ({ ...f, status: s }))}
+                      className={`py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest border-2 transition-all ${
+                        deviceForm.status === s ? 'bg-black text-white border-black' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Serial Number</label>
+                <input
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-mono outline-none focus:border-brand transition-all"
+                  placeholder="Optional"
+                  value={deviceForm.serialNumber || ''}
+                  onChange={e => setDeviceForm(f => ({ ...f, serialNumber: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Notes</label>
+                <textarea
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-medium outline-none focus:border-brand transition-all resize-none h-20"
+                  placeholder="Any notes about this device..."
+                  value={deviceForm.notes || ''}
+                  onChange={e => setDeviceForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+
+              {/* Read-only info from logs */}
+              {(editingNode.firmware || editingNode.ipAddress || editingNode.wifiSsid) && (
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">From Last Log Import</p>
+                  {editingNode.firmware && <div className="flex justify-between text-xs"><span className="text-slate-500">Firmware</span><span className="font-mono font-bold">{editingNode.firmware}</span></div>}
+                  {editingNode.ipAddress && <div className="flex justify-between text-xs"><span className="text-slate-500">IP Address</span><span className="font-mono font-bold">{editingNode.ipAddress}</span></div>}
+                  {editingNode.wifiSsid && <div className="flex justify-between text-xs"><span className="text-slate-500">WiFi Network</span><span className="font-bold">{editingNode.wifiSsid}</span></div>}
+                  {editingNode.lastSeen && <div className="flex justify-between text-xs"><span className="text-slate-500">Last Seen</span><span className="font-bold">{new Date(editingNode.lastSeen).toLocaleDateString()}</span></div>}
+                </div>
+              )}
+            </div>
+
+            <div className="px-8 py-5 bg-slate-50 border-t flex justify-end gap-3">
+              <button onClick={() => setShowDeviceModal(false)} className="px-5 py-2.5 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
+              <button
+                onClick={handleSaveDevice}
+                disabled={isSavingDevice}
+                className="px-8 py-3 bg-black text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSavingDevice ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                {isSavingDevice ? 'Saving...' : 'Save Device'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -145,6 +269,11 @@ export const ProjectTracking: React.FC<Props> = ({
   const [ingestResults, setIngestResults] = useState<IngestionResult[]>([]);
   const [showIngestResults, setShowIngestResults] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [editingNode, setEditingNode] = useState<HardwareNode | null>(null);
+  const [deviceForm, setDeviceForm] = useState<Partial<HardwareNode>>({});
+  const [isSavingDevice, setIsSavingDevice] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(true);
 
   // Filters
   const [filterDevice, setFilterDevice] = useState<string>('all');
@@ -307,6 +436,46 @@ export const ProjectTracking: React.FC<Props> = ({
     setSystemEvents(se);
   };
 
+  const openEditDevice = (node: HardwareNode) => {
+    setEditingNode(node);
+    setDeviceForm({
+      friendlyName: node.friendlyName || '',
+      locationId: node.locationId || '',
+      authType: node.authType,
+      status: node.status,
+      serialNumber: node.serialNumber || '',
+      macAddress: node.macAddress || '',
+      notes: node.notes || '',
+    });
+    setShowDeviceModal(true);
+  };
+
+  const handleSaveDevice = async () => {
+    if (!editingNode) return;
+    setIsSavingDevice(true);
+    try {
+      const updates: Partial<HardwareNode> = {
+        friendly_name: deviceForm.friendlyName,
+        location_id: deviceForm.locationId || null,
+        auth_type: deviceForm.authType,
+        status: deviceForm.status || 'active',
+        serial_number: deviceForm.serialNumber,
+        mac_address: deviceForm.macAddress,
+        notes: deviceForm.notes,
+      } as any;
+      await supabase.from('hardware_nodes').update(updates).eq('id', editingNode.id);
+      setHardwareNodes(prev => prev.map(n => n.id === editingNode.id
+        ? { ...n, ...deviceForm }
+        : n
+      ));
+      setShowDeviceModal(false);
+    } catch (e) {
+      console.error('Device save error:', e);
+    } finally {
+      setIsSavingDevice(false);
+    }
+  };
+
   const handleSaveDisplaySettings = async () => {
     setIsSavingSettings(true);
     const settingsToSave: Record<string, boolean> = {};
@@ -402,6 +571,70 @@ export const ProjectTracking: React.FC<Props> = ({
           ))}
         </div>
       )}
+
+      {/* Devices Section */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <button
+          onClick={() => setDevicesOpen(!devicesOpen)}
+          className="w-full flex items-center justify-between px-8 py-5 hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center"><Cpu size={16} className="text-white" /></div>
+            <div className="text-left">
+              <h3 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">Registered Devices</h3>
+              <p className="text-[10px] text-slate-400 font-bold">{hardwareNodes.length} device{hardwareNodes.length !== 1 ? 's' : ''} — click to name or assign to a location</p>
+            </div>
+          </div>
+          {devicesOpen ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+        </button>
+
+        {devicesOpen && (
+          <div className="px-8 pb-6">
+            {hardwareNodes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-slate-100 rounded-2xl">
+                <Cpu size={28} className="text-slate-200 mb-3" />
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No devices yet — import a log file to register devices automatically</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {hardwareNodes.map(node => {
+                  const loc = project.locations.find(l => l.id === node.locationId);
+                  return (
+                    <div key={node.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl group hover:bg-slate-100 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-3 h-3 rounded-full shrink-0 ${node.status === 'active' ? 'bg-emerald-400' : node.status === 'maintenance' ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-black text-slate-900 text-sm">{node.friendlyName || <span className="text-slate-400 italic font-medium">Unnamed device</span>}</p>
+                            {node.authType && (
+                              <span className="text-[8px] font-black bg-brand/10 text-brand px-2 py-0.5 rounded uppercase tracking-widest">{node.authType}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <p className="text-[10px] font-mono text-slate-400">{node.id}</p>
+                            {loc && (
+                              <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
+                                <MapPin size={10} /> {loc.name}
+                              </span>
+                            )}
+                            {!loc && node.locationId && <span className="text-[10px] text-amber-500 font-bold">Location not found</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => openEditDevice(node)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-brand hover:bg-brand/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <Edit2 size={13} /> Edit
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* No data state */}
       {accessEvents.length === 0 && systemEvents.length === 0 && (
