@@ -959,7 +959,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     doc.addPage();
     addSectionHeader('Deployment Locations');
     if (project.locations.length > 0) {
-      const locData = project.locations.map(loc => [loc.name, loc.address, loc.numSafes || 0, loc.numUsers || 0, loc.deploymentType]);
+      const locData = project.locations.map(loc => [loc.name ?? '', loc.address ?? '', loc.numSafes ?? 0, loc.numUsers ?? 0, loc.deploymentType ?? '']);
       autoTable(doc, {
         startY: 40,
         head: [['Location', 'Address', 'Safes', 'Users', 'Type']],
