@@ -16,16 +16,12 @@ export const authService = {
   },
 
   async getSession(): Promise<Session | null> {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
     return session;
   },
 
   async getAppUser(): Promise<AppUser | null> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
     const { data, error } = await supabase
@@ -47,31 +43,23 @@ export const authService = {
 
   onAuthStateChange(callback: (user: AppUser | null) => void) {
     return supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session) {
-        callback(null);
-        return;
-      }
+      if (!session) { callback(null); return; }
       const appUser = await authService.getAppUser();
       callback(appUser);
     });
   },
 
-  // Admin: create a new app user record after Supabase Auth user is created
   async createAppUser(
     authUserId: string,
     username: string,
     role: UserRole,
     phone?: string
   ): Promise<void> {
-    const { error } = await supabase.from('app_users').insert({
-      id: authUserId,
-      username,
-      role,
-      phone,
-    });
+    const { error } = await supabase.from('app_users').insert({ id: authUserId, username, role, phone });
     if (error) throw new Error(error.message);
   },
 
+  // Update app_users profile fields (username, role, phone)
   async updateAppUser(
     userId: string,
     updates: Partial<Pick<AppUser, 'username' | 'role' | 'phone'>>
@@ -83,13 +71,23 @@ export const authService = {
     if (error) throw new Error(error.message);
   },
 
+  // Update own Supabase Auth credentials (email and/or password).
+  // Only works for the currently signed-in user — Supabase does not allow
+  // changing another user's credentials from the browser without service role key.
+  async updateOwnAuthCredentials(updates: { email?: string; password?: string }): Promise<void> {
+    const payload: { email?: string; password?: string } = {};
+    if (updates.email) payload.email = updates.email;
+    if (updates.password) payload.password = updates.password;
+    if (Object.keys(payload).length === 0) return;
+    const { error } = await supabase.auth.updateUser(payload);
+    if (error) throw new Error(error.message);
+  },
+
   async listAppUsers(): Promise<AppUser[]> {
     const { data, error } = await supabase
       .from('app_users')
       .select('id, username, role, phone');
     if (error) throw new Error(error.message);
-
-    // We need emails from auth — use the admin API if available, otherwise omit
     return (data ?? []).map((u) => ({
       id: u.id,
       email: '',
