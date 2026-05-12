@@ -5,9 +5,10 @@ import type { GlobalSettings } from '../../types';
 
 interface Props {
   globalSettings: GlobalSettings;
+  authError?: string | null;
 }
 
-export const LoginPage: React.FC<Props> = ({ globalSettings }) => {
+export const LoginPage: React.FC<Props> = ({ globalSettings, authError }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,16 +21,16 @@ export const LoginPage: React.FC<Props> = ({ globalSettings }) => {
     setError('');
     try {
       await authService.signIn(email, password);
-      // useAuth hook will pick up the new session automatically
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Authentication failed. Check your credentials.'
+        err instanceof Error ? err.message : 'Authentication failed. Check your credentials.'
       );
       setIsLoading(false);
     }
   };
+
+  const displayError = authError || error;
+  const showSpinner = isLoading && !authError;
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden font-sans">
@@ -37,15 +38,11 @@ export const LoginPage: React.FC<Props> = ({ globalSettings }) => {
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-slate-800 rounded-full blur-[150px] opacity-10 -ml-48 -mb-48" />
 
       <div className="w-full max-w-md relative z-10">
-        <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/10">
+        <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden">
           <div className="p-10 bg-slate-50 border-b border-slate-100 text-center space-y-4">
             <div className="w-20 h-20 bg-black rounded-3xl mx-auto flex items-center justify-center text-white shadow-xl mb-4 overflow-hidden">
               {globalSettings.sidebarIconBase64 ? (
-                <img
-                  src={globalSettings.sidebarIconBase64}
-                  alt="Logo"
-                  className="w-full h-full object-contain p-3"
-                />
+                <img src={globalSettings.sidebarIconBase64} alt="Logo" className="w-full h-full object-contain p-3" />
               ) : (
                 <ShieldCheck size={40} className="text-brand" />
               )}
@@ -59,10 +56,10 @@ export const LoginPage: React.FC<Props> = ({ globalSettings }) => {
           </div>
 
           <form onSubmit={handleLogin} className="p-10 space-y-6">
-            {error && (
-              <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-3 text-red-600 text-[10px] font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-4">
-                <AlertCircle size={16} />
-                {error}
+            {displayError && (
+              <div className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-start gap-3 text-red-600 text-[10px] font-black uppercase tracking-widest animate-in fade-in">
+                <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                <span>{displayError}</span>
               </div>
             )}
 
@@ -71,18 +68,15 @@ export const LoginPage: React.FC<Props> = ({ globalSettings }) => {
                 Email Address
               </label>
               <div className="relative">
-                <Mail
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"
-                  size={18}
-                />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                 <input
                   autoFocus
                   type="email"
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-brand outline-none transition-all"
                   placeholder="you@company.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
+                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                  disabled={showSpinner}
                   autoComplete="email"
                 />
               </div>
@@ -93,17 +87,14 @@ export const LoginPage: React.FC<Props> = ({ globalSettings }) => {
                 Password
               </label>
               <div className="relative">
-                <Lock
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"
-                  size={18}
-                />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
                 <input
                   type="password"
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold focus:border-brand outline-none transition-all"
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  disabled={showSpinner}
                   autoComplete="current-password"
                 />
               </div>
@@ -111,18 +102,15 @@ export const LoginPage: React.FC<Props> = ({ globalSettings }) => {
 
             <button
               type="submit"
-              disabled={isLoading || !email || !password}
+              disabled={showSpinner || !email || !password}
               className="w-full py-5 bg-black text-white rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-brand transition-all flex items-center justify-center gap-2 group shadow-xl shadow-black/10 disabled:opacity-30 disabled:hover:bg-black"
             >
-              {isLoading ? (
+              {showSpinner ? (
                 <RefreshCw size={18} className="animate-spin" />
               ) : (
                 <>
-                  Access Terminal{' '}
-                  <ArrowRight
-                    size={16}
-                    className="group-hover:translate-x-1 transition-transform"
-                  />
+                  Access Terminal
+                  <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
