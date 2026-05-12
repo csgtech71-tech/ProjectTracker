@@ -42,7 +42,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
 };
 
 export default function App() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, authError } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -207,7 +207,7 @@ export default function App() {
   }
 
   // Login gate
-  if (!user) return <LoginPage globalSettings={globalSettings} />;
+  if (!user) return <LoginPage globalSettings={globalSettings} authError={authError} />;
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
