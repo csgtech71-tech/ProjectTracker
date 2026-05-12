@@ -326,27 +326,49 @@ export const ProjectTracking: React.FC<Props> = ({
     setShowDeviceModal(true);
   };
 
+  const [deviceSaveError, setDeviceSaveError] = useState('');
+
   const handleSaveDevice = async () => {
     if (!editingNode) return;
     setIsSavingDevice(true);
+    setDeviceSaveError('');
     try {
-      const updates: Partial<HardwareNode> = {
-        friendly_name: deviceForm.friendlyName,
-        location_id: deviceForm.locationId || null,
-        auth_type: deviceForm.authType,
+      // Build update object with only defined values to avoid overwriting with undefined
+      const updates: Record<string, unknown> = {
         status: deviceForm.status || 'active',
-        serial_number: deviceForm.serialNumber,
-        mac_address: deviceForm.macAddress,
-        notes: deviceForm.notes,
-      } as any;
-      await supabase.from('hardware_nodes').update(updates).eq('id', editingNode.id);
+      };
+      if (deviceForm.friendlyName !== undefined) updates.friendly_name = deviceForm.friendlyName;
+      if (deviceForm.locationId !== undefined) updates.location_id = deviceForm.locationId || null;
+      if (deviceForm.authType !== undefined) updates.auth_type = deviceForm.authType || null;
+      if (deviceForm.serialNumber !== undefined) updates.serial_number = deviceForm.serialNumber || null;
+      if (deviceForm.macAddress !== undefined) updates.mac_address = deviceForm.macAddress || null;
+      if (deviceForm.notes !== undefined) updates.notes = deviceForm.notes || null;
+
+      const { error } = await supabase
+        .from('hardware_nodes')
+        .update(updates)
+        .eq('id', editingNode.id);
+
+      if (error) throw new Error(error.message);
+
+      // Update local state with camelCase fields
       setHardwareNodes(prev => prev.map(n => n.id === editingNode.id
-        ? { ...n, ...deviceForm }
+        ? {
+            ...n,
+            friendlyName: deviceForm.friendlyName,
+            locationId: deviceForm.locationId,
+            authType: deviceForm.authType,
+            status: deviceForm.status || 'active',
+            serialNumber: deviceForm.serialNumber,
+            macAddress: deviceForm.macAddress,
+            notes: deviceForm.notes,
+          }
         : n
       ));
       setShowDeviceModal(false);
     } catch (e) {
       console.error('Device save error:', e);
+      setDeviceSaveError(e instanceof Error ? e.message : 'Save failed. Check console for details.');
     } finally {
       setIsSavingDevice(false);
     }
@@ -1199,10 +1221,13 @@ export const ProjectTracking: React.FC<Props> = ({
                 <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Edit Device</h3>
                 <p className="text-[10px] font-mono text-slate-400 mt-0.5">{editingNode.id}</p>
               </div>
-              <button onClick={() => setShowDeviceModal(false)} className="text-slate-400 hover:text-black transition-colors"><X size={22} /></button>
+              <button onClick={() => { setShowDeviceModal(false); setDeviceSaveError(''); }} className="text-slate-400 hover:text-black transition-colors"><X size={22} /></button>
             </div>
 
             <div className="p-8 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              {deviceSaveError && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-bold">{deviceSaveError}</div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Device Name</label>
                 <input
@@ -1291,7 +1316,7 @@ export const ProjectTracking: React.FC<Props> = ({
             </div>
 
             <div className="px-8 py-5 bg-slate-50 border-t flex justify-end gap-3">
-              <button onClick={() => setShowDeviceModal(false)} className="px-5 py-2.5 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
+              <button onClick={() => { setShowDeviceModal(false); setDeviceSaveError(''); }} className="px-5 py-2.5 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
               <button
                 onClick={handleSaveDevice}
                 disabled={isSavingDevice}
