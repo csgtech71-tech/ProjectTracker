@@ -94,7 +94,10 @@ export const projectService = {
       .from('projects')
       .select('*')
       .order('created_at', { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) {
+      console.error('projects.list error:', error.message);
+      throw new Error(error.message);
+    }
     return (data ?? []).map(rowToProject);
   },
 
@@ -159,9 +162,15 @@ export const settingsService = {
       .from('global_settings')
       .select('*')
       .eq('id', 'singleton')
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
+    if (error) {
+      console.warn('global_settings load error:', error.message);
+      return { sidebarTitle: 'Project Tracker', companyName: 'MedixSafe' };
+    }
+    if (!data) {
+      // Row missing — insert it silently and return defaults
+      await supabase.from('global_settings').upsert({ id: 'singleton', sidebar_title: 'Project Tracker' });
       return { sidebarTitle: 'Project Tracker', companyName: 'MedixSafe' };
     }
 
