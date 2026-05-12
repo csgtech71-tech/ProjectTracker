@@ -50,6 +50,7 @@ export default function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(DEFAULT_SETTINGS);
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [dataLoadError, setDataLoadError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
@@ -74,8 +75,12 @@ export default function App() {
         setProjects(projs);
         if (projs.length > 0) setActiveProjectId(projs[0].id);
         setGlobalSettings(settings);
+        setDataLoadError('');
       })
-      .catch(console.error)
+      .catch((e) => {
+        console.error('Load error:', e);
+        setDataLoadError(e instanceof Error ? e.message : 'Failed to load data from Supabase.');
+      })
       .finally(() => setIsDataLoading(false));
   }, [user]);
 
@@ -353,6 +358,22 @@ export default function App() {
               <div className="flex flex-col items-center justify-center h-64">
                 <RefreshCw size={32} className="text-brand animate-spin mb-4" />
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Loading Projects...</p>
+              </div>
+            ) : dataLoadError ? (
+              <div className="flex flex-col items-center justify-center h-64 text-center gap-4">
+                <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center">
+                  <LogOut size={28} className="text-red-400" />
+                </div>
+                <div>
+                  <p className="text-lg font-black text-slate-700 uppercase tracking-tighter mb-1">Failed to Load Data</p>
+                  <p className="text-sm text-red-500 font-medium max-w-md">{dataLoadError}</p>
+                </div>
+                <button
+                  onClick={() => { setDataLoadError(''); setIsDataLoading(true); Promise.all([projectService.list(), settingsService.load()]).then(([projs, settings]) => { setProjects(projs); if (projs.length > 0) setActiveProjectId(projs[0].id); setGlobalSettings(settings); setDataLoadError(''); }).catch((e) => setDataLoadError(e instanceof Error ? e.message : 'Failed to load.')).finally(() => setIsDataLoading(false)); }}
+                  className="px-6 py-3 bg-black text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all flex items-center gap-2"
+                >
+                  <RefreshCw size={14} /> Retry
+                </button>
               </div>
             ) : (
               <>
