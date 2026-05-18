@@ -326,12 +326,12 @@ export default function App() {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id as Tab)}
-                    className={`h-full px-5 flex items-center gap-2.5 text-[10px] uppercase tracking-widest font-black transition-all relative shrink-0 ${
+                    className={`h-full px-3 flex items-center gap-1.5 text-[9px] uppercase tracking-tight font-black transition-all relative shrink-0 ${
                       activeTab === item.id ? 'text-brand' : 'text-slate-400 hover:text-slate-600'
                     }`}
                   >
-                    <Icon size={16} />
-                    <span className="hidden lg:block">{item.label}</span>
+                    <Icon size={13} />
+                    <span>{item.label}</span>
                     {activeTab === item.id && <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand" />}
                   </button>
                 );
