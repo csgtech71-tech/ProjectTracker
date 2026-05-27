@@ -67,7 +67,7 @@ export interface AccessEvent {
   project_id?: string;
   occurred_at: string; // ISO
   auth_type: HardwareAuthType;
-  result: 'success' | 'failure' | 'unknown';
+  result: 'success' | 'failure' | 'incomplete' | 'unknown';
   failure_reason?: string;
   user_id_raw?: string;
   card_bits?: number;
