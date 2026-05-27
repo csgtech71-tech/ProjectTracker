@@ -212,6 +212,20 @@ function checkPage(doc: jsPDF, y: number, needed: number, settings: GlobalSettin
 
 // ─── public export function ───────────────────────────────────────────────────
 
+export interface ExportToggles {
+  showTimeline?: boolean;
+  showAuthBreakdown?: boolean;
+  showFailedAttempts?: boolean;
+  showUserActivity?: boolean;
+  showDoorDuration?: boolean;
+  showUptimeSummary?: boolean;
+  showMqttEvents?: boolean;
+  showReboots?: boolean;
+  showHealthchecks?: boolean;
+  showCloudSync?: boolean;
+  showConfigChanges?: boolean;
+}
+
 export interface ExportData {
   accessEvents: AccessEvent[];
   systemEvents: SystemEvent[];
@@ -221,11 +235,26 @@ export interface ExportData {
   analystName: string;
   reportTitle: string;
   notes: string;
+  toggles?: ExportToggles;
 }
 
 export function exportPDF(data: ExportData): void {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const { accessEvents, systemEvents, devices, settings } = data;
+  const toggles = data.toggles ?? {};
+  const show = {
+    timeline:      toggles.showTimeline      !== false,
+    authBreakdown: toggles.showAuthBreakdown !== false,
+    failedAttempts:toggles.showFailedAttempts!== false,
+    userActivity:  toggles.showUserActivity  !== false,
+    doorDuration:  toggles.showDoorDuration  !== false,
+    uptime:        toggles.showUptimeSummary !== false,
+    mqtt:          toggles.showMqttEvents    !== false,
+    reboots:       toggles.showReboots       !== false,
+    healthchecks:  toggles.showHealthchecks  === true,
+    cloudSync:     toggles.showCloudSync     === true,
+    configChanges: toggles.showConfigChanges === true,
+  };
 
   const deviceName = (id: string) => {
     const d = devices.find(d => d.id === id);
@@ -691,10 +720,51 @@ export function exportPDF(data: ExportData): void {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
-  // SYSTEM / NETWORK PAGE (if applicable)
+  // SYSTEM / NETWORK PAGES
+  // Render whenever any system toggle is on and there is data for it
   // ════════════════════════════════════════════════════════════════════════════
 
-  if (reboots.length > 0 || mqttDrops.length > 0) {
+  const mqttAllEvents = systemEvents
+    .filter(e => ['mqtt_connect','mqtt_disconnect'].includes(e.event_type))
+    .sort((a,b) => a.occurred_at.localeCompare(b.occurred_at));
+  const healthchecks   = systemEvents.filter(e => e.event_type === 'healthcheck');
+  const cloudSyncs     = systemEvents.filter(e => e.event_type === 'cloud_sync');
+  const syncSkips      = systemEvents.filter(e => e.event_type === 'sync_skipped');
+  const configChanges  = systemEvents.filter(e => e.event_type === 'config_change');
+
+  // Uptime computation per device
+  function computeUptime(deviceId: string) {
+    const evts = mqttAllEvents.filter(e => e.device_id === deviceId);
+    if (evts.length === 0) return null;
+    const firstTs = new Date(evts[0].occurred_at).getTime();
+    const lastTs  = new Date(evts[evts.length-1].occurred_at).getTime();
+    const spanMs  = lastTs - firstTs;
+    if (spanMs === 0) return null;
+    let downtimeMs = 0;
+    let disconnectAt: number | null = null;
+    const gaps: {start:string;end:string;durationMs:number}[] = [];
+    for (const e of evts) {
+      const ts = new Date(e.occurred_at).getTime();
+      if (e.event_type === 'mqtt_disconnect') { disconnectAt = ts; }
+      else if (e.event_type === 'mqtt_connect' && disconnectAt !== null) {
+        const gapMs = ts - disconnectAt;
+        downtimeMs += gapMs;
+        gaps.push({ start: new Date(disconnectAt).toISOString(), end: e.occurred_at, durationMs: gapMs });
+        disconnectAt = null;
+      }
+    }
+    const uptimePct = Math.max(0, Math.min(100, ((spanMs - downtimeMs) / spanMs) * 100));
+    return { uptimePct: uptimePct.toFixed(1), downtimeMs, spanMs, disconnects: evts.filter(e=>e.event_type==='mqtt_disconnect').length, gaps };
+  }
+
+  const hasSysData = (show.uptime && mqttAllEvents.length > 0)
+    || (show.mqtt && mqttDrops.length > 0)
+    || (show.reboots && reboots.length > 0)
+    || (show.healthchecks && healthchecks.length > 0)
+    || (show.cloudSync && (cloudSyncs.length > 0 || syncSkips.length > 0))
+    || (show.configChanges && configChanges.length > 0);
+
+  if (hasSysData) {
     doc.addPage();
     pageNums.current++;
     addHeader(doc, settings, pageNums.current, pageNums.total);
@@ -704,9 +774,109 @@ export function exportPDF(data: ExportData): void {
     doc.setFontSize(16);
     doc.setTextColor(...C.slate900);
     doc.text('System & Network Events', MARGIN, y);
-    y += 10;
+    y += 12;
 
-    if (reboots.length > 0) {
+    // ── UPTIME SUMMARY ──────────────────────────────────────────────────────
+    if (show.uptime && mqttAllEvents.length > 0) {
+      y = checkPage(doc, y, 40, settings, pageNums);
+      y = addSectionHeader(doc, y, 'Connection Uptime Summary');
+
+      const uniqueDeviceIds = [...new Set(mqttAllEvents.map(e => e.device_id))];
+      for (const dId of uniqueDeviceIds) {
+        const uptime = computeUptime(dId);
+        if (!uptime) continue;
+        y = checkPage(doc, y, 36, settings, pageNums);
+
+        const dName = deviceName(dId);
+        const pct = parseFloat(uptime.uptimePct);
+        const barColor: [number,number,number] = pct > 95 ? C.emerald : pct > 80 ? C.amber : C.red;
+
+        roundRect(doc, MARGIN, y, CONTENT_W, 32, 2, C.slate50);
+
+        // Device name
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(...C.slate900);
+        doc.text(dName, MARGIN + 4, y + 7);
+
+        // Uptime %
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(...barColor);
+        doc.text(`${uptime.uptimePct}%`, PAGE_W - MARGIN - 4, y + 10, { align: 'right' });
+
+        // Progress bar
+        const barY = y + 13;
+        roundRect(doc, MARGIN + 4, barY, CONTENT_W - 8, 4, 1, C.slate100);
+        if (pct > 0) {
+          doc.setFillColor(...barColor);
+          doc.roundedRect(MARGIN + 4, barY, (CONTENT_W - 8) * pct / 100, 4, 1, 1, 'F');
+        }
+
+        // Stats row
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.5);
+        doc.setTextColor(...C.slate400);
+        const statsY = y + 24;
+        doc.text(`Disconnects: ${uptime.disconnects}`, MARGIN + 4, statsY);
+        doc.text(`Downtime: ${fmtDuration(uptime.downtimeMs)}`, MARGIN + 50, statsY);
+        doc.text(`Log Span: ${fmtDuration(uptime.spanMs)}`, MARGIN + 110, statsY);
+
+        y += 36;
+
+        // Outage periods table
+        if (uptime.gaps.length > 0) {
+          y = checkPage(doc, y, 20, settings, pageNums);
+          autoTable(doc, {
+            startY: y,
+            head: [['Outage Start', 'Reconnected', 'Duration']],
+            body: uptime.gaps.map(g => [fmtDate(g.start), fmtDate(g.end), fmtDuration(g.durationMs)]),
+            styles: { fontSize: 6.5, cellPadding: 2.5, font: 'helvetica', textColor: [...C.slate700] as [number,number,number], lineColor: [...C.slate100] as [number,number,number], lineWidth: 0.3 },
+            headStyles: { fillColor: [239,68,68] as [number,number,number], textColor: [...C.white] as [number,number,number], fontStyle: 'bold', fontSize: 6.5, cellPadding: 3 },
+            alternateRowStyles: { fillColor: [255,248,247] as [number,number,number] },
+            columnStyles: { 0: { cellWidth: 50, font: 'courier' }, 1: { cellWidth: 50, font: 'courier' }, 2: { cellWidth: 78 } },
+            margin: { left: MARGIN, right: MARGIN },
+            didDrawPage: () => { addHeader(doc, settings, ++pageNums.current, pageNums.total); addFooter(doc, settings); },
+          });
+          y = (doc as any).lastAutoTable.finalY + 10;
+        }
+      }
+    }
+
+    // ── MQTT EVENTS ──────────────────────────────────────────────────────────
+    if (show.mqtt && mqttAllEvents.length > 0) {
+      y = checkPage(doc, y, 30, settings, pageNums);
+      y = addSectionHeader(doc, y, `MQTT Events — ${mqttDrops.length} disconnects, ${mqttAllEvents.length - mqttDrops.length} reconnects`);
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Timestamp', 'Device', 'Event', 'Details']],
+        body: mqttAllEvents.map(e => [
+          fmtDate(e.occurred_at),
+          deviceName(e.device_id),
+          e.event_type === 'mqtt_disconnect' ? 'DISCONNECT' : 'CONNECT',
+          e.details,
+        ]),
+        styles: { fontSize: 6.5, cellPadding: 2.5, font: 'helvetica', textColor: [...C.slate700] as [number,number,number], lineColor: [...C.slate100] as [number,number,number], lineWidth: 0.3 },
+        headStyles: { fillColor: [...C.slate900] as [number,number,number], textColor: [...C.white] as [number,number,number], fontStyle: 'bold', fontSize: 6.5, cellPadding: 3.5 },
+        alternateRowStyles: { fillColor: [...C.slate50] as [number,number,number] },
+        columnStyles: { 0: { cellWidth: 36, font: 'courier' }, 1: { cellWidth: 30 }, 2: { cellWidth: 24 }, 3: { cellWidth: 88 } },
+        margin: { left: MARGIN, right: MARGIN },
+        didDrawPage: () => { addHeader(doc, settings, ++pageNums.current, pageNums.total); addFooter(doc, settings); },
+        didParseCell: (hookData) => {
+          if (hookData.column.index === 2 && hookData.section === 'body') {
+            const val = hookData.cell.raw as string;
+            if (val === 'DISCONNECT') hookData.cell.styles.textColor = [...C.red] as [number,number,number];
+            else hookData.cell.styles.textColor = [...C.emerald] as [number,number,number];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // ── REBOOTS ──────────────────────────────────────────────────────────────
+    if (show.reboots && reboots.length > 0) {
+      y = checkPage(doc, y, 30, settings, pageNums);
       y = addSectionHeader(doc, y, `Device Reboots — ${reboots.length} total, ${errorReboots.length} error-triggered`);
 
       if (errorReboots.length > 0) {
@@ -721,35 +891,71 @@ export function exportPDF(data: ExportData): void {
       autoTable(doc, {
         startY: y,
         head: [['Timestamp', 'Device', 'Type', 'Details']],
-        body: reboots.map(e => [
-          fmtDate(e.occurred_at),
-          deviceName(e.device_id),
-          e.event_type.replace('reboot_', '').toUpperCase(),
-          e.details,
-        ]),
+        body: reboots.map(e => [fmtDate(e.occurred_at), deviceName(e.device_id), e.event_type.replace('reboot_','').toUpperCase(), e.details]),
         styles: { fontSize: 6.5, cellPadding: 2.5, font: 'helvetica', textColor: [...C.slate700] as [number,number,number], lineColor: [...C.slate100] as [number,number,number], lineWidth: 0.3 },
         headStyles: { fillColor: [...C.slate900] as [number,number,number], textColor: [...C.white] as [number,number,number], fontStyle: 'bold', fontSize: 6.5, cellPadding: 3.5 },
         alternateRowStyles: { fillColor: [...C.slate50] as [number,number,number] },
-        columnStyles: {
-          0: { cellWidth: 36, font: 'courier' },
-          1: { cellWidth: 32 },
-          2: { cellWidth: 24 },
-          3: { cellWidth: 86 },
-        },
+        columnStyles: { 0: { cellWidth: 36, font: 'courier' }, 1: { cellWidth: 32 }, 2: { cellWidth: 24 }, 3: { cellWidth: 86 } },
         margin: { left: MARGIN, right: MARGIN },
         didDrawPage: () => { addHeader(doc, settings, ++pageNums.current, pageNums.total); addFooter(doc, settings); },
       });
       y = (doc as any).lastAutoTable.finalY + 10;
     }
 
-    if (mqttDrops.length > 0) {
+    // ── HEALTHCHECKS ─────────────────────────────────────────────────────────
+    if (show.healthchecks && healthchecks.length > 0) {
       y = checkPage(doc, y, 30, settings, pageNums);
-      y = addSectionHeader(doc, y, `MQTT Disconnections — ${mqttDrops.length} events`);
+      y = addSectionHeader(doc, y, `Health Checks — ${healthchecks.length} field support data points`);
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Timestamp', 'Device', 'Field Support Data']],
+        body: healthchecks.map(e => [fmtDate(e.occurred_at), deviceName(e.device_id), e.details.replace('FIELD SUPPORT DATA: ','')]),
+        styles: { fontSize: 6, cellPadding: 2, font: 'helvetica', textColor: [...C.slate700] as [number,number,number], lineColor: [...C.slate100] as [number,number,number], lineWidth: 0.3 },
+        headStyles: { fillColor: [...C.slate900] as [number,number,number], textColor: [...C.white] as [number,number,number], fontStyle: 'bold', fontSize: 6.5, cellPadding: 3 },
+        alternateRowStyles: { fillColor: [...C.slate50] as [number,number,number] },
+        columnStyles: { 0: { cellWidth: 36, font: 'courier' }, 1: { cellWidth: 30 }, 2: { font: 'courier' } },
+        margin: { left: MARGIN, right: MARGIN },
+        didDrawPage: () => { addHeader(doc, settings, ++pageNums.current, pageNums.total); addFooter(doc, settings); },
+      });
+      y = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // ── CLOUD SYNC ───────────────────────────────────────────────────────────
+    if (show.cloudSync && (cloudSyncs.length > 0 || syncSkips.length > 0)) {
+      y = checkPage(doc, y, 30, settings, pageNums);
+      y = addSectionHeader(doc, y, `Cloud Sync — ${cloudSyncs.length} synced, ${syncSkips.length} skipped`);
+
+      const allSyncEvents = [...cloudSyncs, ...syncSkips].sort((a,b) => a.occurred_at.localeCompare(b.occurred_at));
+      autoTable(doc, {
+        startY: y,
+        head: [['Timestamp', 'Device', 'Type', 'Details']],
+        body: allSyncEvents.map(e => [fmtDate(e.occurred_at), deviceName(e.device_id), e.event_type === 'sync_skipped' ? 'SKIPPED' : 'SYNCED', e.details]),
+        styles: { fontSize: 6.5, cellPadding: 2.5, font: 'helvetica', textColor: [...C.slate700] as [number,number,number], lineColor: [...C.slate100] as [number,number,number], lineWidth: 0.3 },
+        headStyles: { fillColor: [...C.slate900] as [number,number,number], textColor: [...C.white] as [number,number,number], fontStyle: 'bold', fontSize: 6.5, cellPadding: 3.5 },
+        alternateRowStyles: { fillColor: [...C.slate50] as [number,number,number] },
+        columnStyles: { 0: { cellWidth: 36, font: 'courier' }, 1: { cellWidth: 30 }, 2: { cellWidth: 22 }, 3: { cellWidth: 90 } },
+        margin: { left: MARGIN, right: MARGIN },
+        didDrawPage: () => { addHeader(doc, settings, ++pageNums.current, pageNums.total); addFooter(doc, settings); },
+        didParseCell: (hookData) => {
+          if (hookData.column.index === 2 && hookData.section === 'body') {
+            const val = hookData.cell.raw as string;
+            hookData.cell.styles.textColor = val === 'SKIPPED' ? [...C.amber] as [number,number,number] : [...C.emerald] as [number,number,number];
+          }
+        },
+      });
+      y = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // ── CONFIG CHANGES ───────────────────────────────────────────────────────
+    if (show.configChanges && configChanges.length > 0) {
+      y = checkPage(doc, y, 30, settings, pageNums);
+      y = addSectionHeader(doc, y, `Config Changes — ${configChanges.length} events`);
 
       autoTable(doc, {
         startY: y,
         head: [['Timestamp', 'Device', 'Details']],
-        body: mqttDrops.map(e => [fmtDate(e.occurred_at), deviceName(e.device_id), e.details]),
+        body: configChanges.map(e => [fmtDate(e.occurred_at), deviceName(e.device_id), e.details]),
         styles: { fontSize: 6.5, cellPadding: 2.5, font: 'helvetica', textColor: [...C.slate700] as [number,number,number], lineColor: [...C.slate100] as [number,number,number], lineWidth: 0.3 },
         headStyles: { fillColor: [...C.slate900] as [number,number,number], textColor: [...C.white] as [number,number,number], fontStyle: 'bold', fontSize: 6.5, cellPadding: 3.5 },
         alternateRowStyles: { fillColor: [...C.slate50] as [number,number,number] },
