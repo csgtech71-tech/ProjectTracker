@@ -8,7 +8,8 @@ export type Tab =
   | 'costing'
   | 'readiness'
   | 'closure'
-  | 'settings';
+  | 'settings'
+  | 'analyzer';
 
 export type Sentiment = 'happy' | 'disappointed' | 'sad' | 'angry';
 export type UserRole = 'admin' | 'user';

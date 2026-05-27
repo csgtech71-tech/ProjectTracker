@@ -15,6 +15,7 @@ import { ProjectDashboard } from './components/project/ProjectDashboard';
 import { ProjectJobCosting } from './components/project/ProjectJobCosting';
 import { ProjectReadiness } from './components/project/ProjectReadiness';
 import { AdminSettings } from './components/admin/AdminSettings';
+import { LogAnalyzer } from './components/tracking/LogAnalyzer';
 import {
   Calendar as CalIcon,
   Activity,
@@ -34,6 +35,7 @@ import {
   CloudOff,
   Calculator,
   ClipboardList,
+  ScanSearch,
 } from 'lucide-react';
 
 const DEFAULT_SETTINGS: GlobalSettings = {
@@ -202,6 +204,7 @@ export default function App() {
     { id: 'costing', label: 'Costing', icon: Calculator },
     { id: 'sow', label: 'SOW', icon: FileText },
     { id: 'closure', label: 'Closure', icon: CheckCircle },
+    { id: 'analyzer', label: 'Analyzer', icon: ScanSearch },
   ];
 
   if (authLoading) {
@@ -418,6 +421,9 @@ export default function App() {
                 {activeTab === 'closure' && (activeProject
                   ? <ProjectClosing project={activeProject} onUpdate={handleUpdateProject} />
                   : <NoProjectSelected />
+                )}
+                {activeTab === 'analyzer' && (
+                  <LogAnalyzer currentUser={user} />
                 )}
                 {activeTab === 'settings' && (
                   <AdminSettings settings={globalSettings} currentUser={user} onUpdateSettings={handleUpdateSettings} />
