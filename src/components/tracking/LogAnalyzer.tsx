@@ -2,16 +2,17 @@ import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   Upload, Activity, AlertTriangle, CheckCircle2, Users, RefreshCw,
   Trash2, ChevronDown, ChevronUp, X, Database, Cpu, Edit2, Save,
-  Filter, FileText,
+  Filter, FileText, Download,
 } from 'lucide-react';
 import {
   AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { parseLogFile } from '../../parsers/logParser';
-import type { AccessEvent, SystemEvent, HardwareAuthType, AppUser } from '../../types';
+import type { AccessEvent, SystemEvent, HardwareAuthType, AppUser, GlobalSettings } from '../../types';
+import { exportPDF, exportCSV } from '../../services/exportReport';
 
-interface Props { currentUser: AppUser; }
+interface Props { currentUser: AppUser; globalSettings: GlobalSettings; }
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -98,13 +99,96 @@ const Section: React.FC<{ title: string; children: React.ReactNode; defaultOpen?
         {open ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
       </button>
       {open && <div className="px-8 pb-8">{children}</div>}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Export Report</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">{allAccess.length} access events · {allSystem.length} system events · {devices.length} devices</p>
+              </div>
+              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-black"><X size={22} /></button>
+            </div>
+
+            <div className="p-8 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Report Title</label>
+                <input
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
+                  value={exportTitle}
+                  onChange={e => setExportTitle(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prepared By</label>
+                <input
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
+                  value={exportAnalyst}
+                  onChange={e => setExportAnalyst(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Report Notes (optional)</label>
+                <textarea
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-medium outline-none focus:border-brand transition-all resize-none h-24"
+                  placeholder="Add any context, observations, or summary notes for the report..."
+                  value={exportNotes}
+                  onChange={e => setExportNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">What's included</p>
+                <ul className="text-xs text-slate-600 space-y-1">
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Cover page with KPI summary and device list</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Daily access timeline chart</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Authentication method distribution</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Full user activity table</li>
+                  {allAccess.filter(e => e.result === 'failure').length > 0 && (
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" /> Failed attempts detail ({allAccess.filter(e => e.result === 'failure').length} events)</li>
+                  )}
+                  {allSystem.filter(e => e.event_type.startsWith('reboot')).length > 0 && (
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" /> System & network events</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+
+            <div className="px-8 py-5 bg-slate-50 border-t flex items-center justify-between">
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
+                <FileText size={14} /> Export CSV
+              </button>
+              <div className="flex gap-3">
+                <button onClick={() => setShowExportModal(false)} className="px-5 py-2.5 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                  className="flex items-center gap-2 px-8 py-3 bg-brand text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand-dark transition-all disabled:opacity-50"
+                >
+                  {isExporting ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                  {isExporting ? 'Generating PDF...' : 'Download PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-export const LogAnalyzer: React.FC<Props> = ({ currentUser }) => {
+export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imports, setImports] = useState<ImportedFile[]>([]);
   const [devices, setDevices] = useState<LocalDevice[]>([]);
@@ -279,6 +363,37 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser }) => {
 
   const totalEvents = imports.reduce((a, i) => a + i.accessEvents.length + i.systemEvents.length, 0);
 
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportTitle, setExportTitle] = useState('Device Access & Analytics Report');
+  const [exportAnalyst, setExportAnalyst] = useState(currentUser.username);
+  const [exportNotes, setExportNotes] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      exportPDF({
+        accessEvents: allAccess,
+        systemEvents: allSystem,
+        devices,
+        filenames: imports.map(i => i.filename),
+        settings: globalSettings,
+        analystName: exportAnalyst,
+        reportTitle: exportTitle,
+        notes: exportNotes,
+      });
+    } catch (e) {
+      console.error('PDF export failed:', e);
+    } finally {
+      setTimeout(() => setIsExporting(false), 1500);
+    }
+  };
+
+  const handleExportCSV = () => {
+    exportCSV(allAccess, allSystem, devices, globalSettings.companyName || 'MedixSafe');
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       {/* Header */}
@@ -301,6 +416,14 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser }) => {
             </button>
           )}
           <input ref={fileInputRef} type="file" accept=".txt,.log" multiple className="hidden" onChange={handleInputChange} />
+          {imports.length > 0 && (
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-dark transition-all"
+            >
+              <Download size={16} /> Export Report
+            </button>
+          )}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isIngesting}
