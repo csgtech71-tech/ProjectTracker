@@ -197,7 +197,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
     for (const file of files) {
       try {
         const text = await file.text();
-        const parsed = parseLogFile(text);
+        const parsed = parseLogFile(text, file.name);
 
         if (parsed.deviceIds.length === 0) {
           results.push({ filename: file.name, ok: false, msg: 'No device ID detected.' });
@@ -249,7 +249,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    handleFiles(Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.txt') || f.name.endsWith('.log')));
+    handleFiles(Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.txt') || f.name.endsWith('.log') || f.name.endsWith('.csv')));
   };
 
   const removeImport = (filename: string) => setImports(prev => prev.filter(i => i.filename !== filename));
@@ -305,7 +305,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
               <Download size={16} /> Export Report
             </button>
           )}
-          <input ref={fileInputRef} type="file" accept=".txt,.log" multiple className="hidden" onChange={handleInputChange} />
+          <input ref={fileInputRef} type="file" accept=".txt,.log,.csv" multiple className="hidden" onChange={handleInputChange} />
           <button onClick={() => fileInputRef.current?.click()} disabled={isIngesting} className="flex items-center gap-2 px-6 py-3 bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all disabled:opacity-50">
             {isIngesting ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
             {isIngesting ? 'Parsing...' : 'Import Logs'}
