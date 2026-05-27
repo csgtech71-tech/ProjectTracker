@@ -9,15 +9,16 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { parseLogFile } from '../../parsers/logParser';
-import type { AccessEvent, SystemEvent, HardwareAuthType, AppUser, GlobalSettings } from '../../types';
+import type { AccessEvent, SystemEvent, AppUser, GlobalSettings } from '../../types';
 import { exportPDF, exportCSV } from '../../services/exportReport';
 
-interface Props { currentUser: AppUser; globalSettings: GlobalSettings; }
-
-// ─── types ───────────────────────────────────────────────────────────────────
+interface Props {
+  currentUser: AppUser;
+  globalSettings: GlobalSettings;
+}
 
 interface LocalDevice {
-  id: string;            // raw device id from log
+  id: string;
   friendlyName: string;
   firmware?: string;
   ipAddress?: string;
@@ -34,8 +35,6 @@ interface ImportedFile {
   lineCount: number;
 }
 
-// ─── colours ─────────────────────────────────────────────────────────────────
-
 const AUTH_COLORS: Record<string, string> = {
   'Card Only': '#3b82f6',
   'Card + Pin': '#8b5cf6',
@@ -45,8 +44,6 @@ const AUTH_COLORS: Record<string, string> = {
   'Card/User Id + Fingerprint (Pin Fallback)': '#d12913',
   'Fingerprint Only': '#ec4899',
 };
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -68,8 +65,6 @@ function groupByDay(events: AccessEvent[]) {
   }
   return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
 }
-
-// ─── sub-components ───────────────────────────────────────────────────────────
 
 const StatCard: React.FC<{
   label: string; value: string | number; sub?: string;
@@ -99,120 +94,41 @@ const Section: React.FC<{ title: string; children: React.ReactNode; defaultOpen?
         {open ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
       </button>
       {open && <div className="px-8 pb-8">{children}</div>}
-
-      {/* Export Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-              <div>
-                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Export Report</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">{allAccess.length} access events · {allSystem.length} system events · {devices.length} devices</p>
-              </div>
-              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-black"><X size={22} /></button>
-            </div>
-
-            <div className="p-8 space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Report Title</label>
-                <input
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
-                  value={exportTitle}
-                  onChange={e => setExportTitle(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prepared By</label>
-                <input
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
-                  value={exportAnalyst}
-                  onChange={e => setExportAnalyst(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Report Notes (optional)</label>
-                <textarea
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-medium outline-none focus:border-brand transition-all resize-none h-24"
-                  placeholder="Add any context, observations, or summary notes for the report..."
-                  value={exportNotes}
-                  onChange={e => setExportNotes(e.target.value)}
-                />
-              </div>
-
-              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">What's included</p>
-                <ul className="text-xs text-slate-600 space-y-1">
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Cover page with KPI summary and device list</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Daily access timeline chart</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Authentication method distribution</li>
-                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Full user activity table</li>
-                  {allAccess.filter(e => e.result === 'failure').length > 0 && (
-                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" /> Failed attempts detail ({allAccess.filter(e => e.result === 'failure').length} events)</li>
-                  )}
-                  {allSystem.filter(e => e.event_type.startsWith('reboot')).length > 0 && (
-                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" /> System & network events</li>
-                  )}
-                </ul>
-              </div>
-            </div>
-
-            <div className="px-8 py-5 bg-slate-50 border-t flex items-center justify-between">
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
-              >
-                <FileText size={14} /> Export CSV
-              </button>
-              <div className="flex gap-3">
-                <button onClick={() => setShowExportModal(false)} className="px-5 py-2.5 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleExportPDF}
-                  disabled={isExporting}
-                  className="flex items-center gap-2 px-8 py-3 bg-brand text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand-dark transition-all disabled:opacity-50"
-                >
-                  {isExporting ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
-                  {isExporting ? 'Generating PDF...' : 'Download PDF'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-// ─── main component ───────────────────────────────────────────────────────────
-
 export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── core data state ─────────────────────────────────────────────────────────
   const [imports, setImports] = useState<ImportedFile[]>([]);
   const [devices, setDevices] = useState<LocalDevice[]>([]);
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestResults, setIngestResults] = useState<{ filename: string; ok: boolean; msg: string }[]>([]);
   const [showResults, setShowResults] = useState(false);
 
-  // Filters
+  // ── filters ─────────────────────────────────────────────────────────────────
   const [filterDevice, setFilterDevice] = useState('all');
   const [filterResult, setFilterResult] = useState<'all' | 'success' | 'failure'>('all');
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');
 
-  // Device name editing
+  // ── device name editing ─────────────────────────────────────────────────────
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
-  // All access and system events across all imports
-  const allAccess = useMemo(() =>
-    imports.flatMap(i => i.accessEvents), [imports]);
-  const allSystem = useMemo(() =>
-    imports.flatMap(i => i.systemEvents), [imports]);
+  // ── export modal ─────────────────────────────────────────────────────────────
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportTitle, setExportTitle] = useState('Device Access & Analytics Report');
+  const [exportAnalyst, setExportAnalyst] = useState(currentUser.username);
+  const [exportNotes, setExportNotes] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
-  // Filtered access events
+  // ── derived ─────────────────────────────────────────────────────────────────
+  const allAccess = useMemo(() => imports.flatMap(i => i.accessEvents), [imports]);
+  const allSystem = useMemo(() => imports.flatMap(i => i.systemEvents), [imports]);
+
   const filtered = useMemo(() => {
     return allAccess.filter(e => {
       if (filterDevice !== 'all' && e.device_id !== filterDevice) return false;
@@ -223,7 +139,6 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
     });
   }, [allAccess, filterDevice, filterResult, filterStart, filterEnd]);
 
-  // Analytics
   const analytics = useMemo(() => {
     const total = filtered.length;
     const successes = filtered.filter(e => e.result === 'success').length;
@@ -258,14 +173,18 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
     return { total, successes, failures, successRate, avgDuration, uniqueUsers, pieData, timeline, userActivity };
   }, [filtered]);
 
-  const sysAnalytics = useMemo(() => {
-    const reboots = allSystem.filter(e => ['reboot_normal', 'reboot_error', 'reboot_watchdog'].includes(e.event_type));
-    const errorReboots = reboots.filter(e => e.event_type === 'reboot_error');
-    const mqttDrops = allSystem.filter(e => e.event_type === 'mqtt_disconnect');
-    return { reboots, errorReboots, mqttDrops };
-  }, [allSystem]);
+  const sysAnalytics = useMemo(() => ({
+    reboots: allSystem.filter(e => ['reboot_normal', 'reboot_error', 'reboot_watchdog'].includes(e.event_type)),
+    errorReboots: allSystem.filter(e => e.event_type === 'reboot_error'),
+    mqttDrops: allSystem.filter(e => e.event_type === 'mqtt_disconnect'),
+  }), [allSystem]);
 
-  // File upload handler
+  const deviceName = (id: string) => {
+    const d = devices.find(d => d.id === id);
+    return d?.friendlyName || id.slice(0, 8) + '…';
+  };
+
+  // ── file ingestion ───────────────────────────────────────────────────────────
   const handleFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setIsIngesting(true);
@@ -286,7 +205,6 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
         }
 
         const deviceId = parsed.deviceIds[0];
-
         newImports.push({
           filename: file.name,
           deviceId,
@@ -295,24 +213,19 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
           lineCount: parsed.lineCount,
         });
 
-        // Register device if not already known
-        if (!devices.find(d => d.id === deviceId) && !newDevices.find(d => d.id === deviceId)) {
-          newDevices.push({
-            id: deviceId,
-            friendlyName: '',
-            firmware: parsed.firmware,
-            ipAddress: parsed.ipAddress,
-            wifiSsid: parsed.wifiSsid,
-          });
-        } else {
-          // Update diagnostics on existing device
-          setDevices(prev => prev.map(d => d.id === deviceId ? {
-            ...d,
-            firmware: parsed.firmware || d.firmware,
-            ipAddress: parsed.ipAddress || d.ipAddress,
-            wifiSsid: parsed.wifiSsid || d.wifiSsid,
-          } : d));
-        }
+        setDevices(prev => {
+          const exists = prev.find(d => d.id === deviceId);
+          if (exists) {
+            return prev.map(d => d.id === deviceId ? {
+              ...d,
+              firmware: parsed.firmware || d.firmware,
+              ipAddress: parsed.ipAddress || d.ipAddress,
+              wifiSsid: parsed.wifiSsid || d.wifiSsid,
+            } : d);
+          }
+          newDevices.push({ id: deviceId, friendlyName: '', firmware: parsed.firmware, ipAddress: parsed.ipAddress, wifiSsid: parsed.wifiSsid });
+          return prev;
+        });
 
         results.push({
           filename: file.name,
@@ -330,46 +243,23 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
     setShowResults(true);
     setIsIngesting(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [devices]);
+  }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(Array.from(e.target.files ?? []));
-  };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => handleFiles(Array.from(e.target.files ?? []));
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     handleFiles(Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.txt') || f.name.endsWith('.log')));
   };
 
-  const removeImport = (filename: string) => {
-    setImports(prev => prev.filter(i => i.filename !== filename));
-  };
+  const removeImport = (filename: string) => setImports(prev => prev.filter(i => i.filename !== filename));
 
   const clearAll = () => {
-    setImports([]);
-    setDevices([]);
-    setIngestResults([]);
-    setShowResults(false);
-    setFilterDevice('all');
-    setFilterResult('all');
-    setFilterStart('');
-    setFilterEnd('');
+    setImports([]); setDevices([]); setIngestResults([]); setShowResults(false);
+    setFilterDevice('all'); setFilterResult('all'); setFilterStart(''); setFilterEnd('');
   };
 
-  const deviceName = (id: string) => {
-    const d = devices.find(d => d.id === id);
-    return d?.friendlyName || id.slice(0, 8) + '…';
-  };
-
-  const totalEvents = imports.reduce((a, i) => a + i.accessEvents.length + i.systemEvents.length, 0);
-
-  // Export modal state
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportTitle, setExportTitle] = useState('Device Access & Analytics Report');
-  const [exportAnalyst, setExportAnalyst] = useState(currentUser.username);
-  const [exportNotes, setExportNotes] = useState('');
-  const [isExporting, setIsExporting] = useState(false);
-
+  // ── export handlers ──────────────────────────────────────────────────────────
   const handleExportPDF = async () => {
     setIsExporting(true);
     try {
@@ -394,63 +284,46 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
     exportCSV(allAccess, allSystem, devices, globalSettings.companyName || 'MedixSafe');
   };
 
+  // ── render ───────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
+
       {/* Header */}
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">
-            Log Analyzer
-          </h2>
-          <p className="text-sm text-slate-500 font-medium italic">
-            Standalone log analysis — no project required. Data stays in your browser session.
-          </p>
+          <h2 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none mb-2">Log Analyzer</h2>
+          <p className="text-sm text-slate-500 font-medium italic">Standalone log analysis — no project required. Data stays in your browser session.</p>
         </div>
         <div className="flex gap-2">
           {imports.length > 0 && (
-            <button
-              onClick={clearAll}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-500 transition-all"
-            >
+            <button onClick={clearAll} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-500 transition-all">
               <Trash2 size={14} /> Clear All
             </button>
           )}
-          <input ref={fileInputRef} type="file" accept=".txt,.log" multiple className="hidden" onChange={handleInputChange} />
           {imports.length > 0 && (
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand-dark transition-all"
-            >
+            <button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all">
               <Download size={16} /> Export Report
             </button>
           )}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isIngesting}
-            className="flex items-center gap-2 px-6 py-3 bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all disabled:opacity-50"
-          >
+          <input ref={fileInputRef} type="file" accept=".txt,.log" multiple className="hidden" onChange={handleInputChange} />
+          <button onClick={() => fileInputRef.current?.click()} disabled={isIngesting} className="flex items-center gap-2 px-6 py-3 bg-black text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all disabled:opacity-50">
             {isIngesting ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
             {isIngesting ? 'Parsing...' : 'Import Logs'}
           </button>
         </div>
       </div>
 
-      {/* Drop zone — shown when no files loaded */}
+      {/* Drop zone */}
       {imports.length === 0 && (
         <div
-          onDrop={handleDrop}
-          onDragOver={e => e.preventDefault()}
+          onDrop={handleDrop} onDragOver={e => e.preventDefault()}
           onClick={() => fileInputRef.current?.click()}
           className="border-2 border-dashed border-slate-200 rounded-3xl p-20 text-center cursor-pointer hover:border-brand hover:bg-brand/5 transition-all group"
         >
           <Database size={48} className="text-slate-200 group-hover:text-brand/30 mx-auto mb-4 transition-colors" />
           <h3 className="text-xl font-black text-slate-400 uppercase tracking-tighter mb-2">Drop Log Files Here</h3>
-          <p className="text-sm text-slate-400">
-            Or click to browse. Accepts <code className="bg-slate-100 px-1 rounded">.txt</code> and <code className="bg-slate-100 px-1 rounded">.log</code> files. Multiple files at once supported.
-          </p>
-          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-4">
-            Session only — nothing is saved to the database
-          </p>
+          <p className="text-sm text-slate-400">Or click to browse. Accepts <code className="bg-slate-100 px-1 rounded">.txt</code> and <code className="bg-slate-100 px-1 rounded">.log</code> files. Multiple files supported.</p>
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-4">Session only — nothing is saved to the database</p>
         </div>
       )}
 
@@ -472,14 +345,14 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
 
       {imports.length > 0 && (
         <>
-          {/* Device Name Editor */}
+          {/* Devices */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="px-8 py-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 bg-slate-900 rounded-xl flex items-center justify-center"><Cpu size={16} className="text-white" /></div>
                 <div>
                   <h3 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">Devices</h3>
-                  <p className="text-[10px] text-slate-400 font-bold">Click a device to give it a friendly name</p>
+                  <p className="text-[10px] text-slate-400 font-bold">Hover a device to give it a friendly name</p>
                 </div>
               </div>
               <span className="text-[10px] font-black text-slate-400 uppercase">{devices.length} device{devices.length !== 1 ? 's' : ''}</span>
@@ -498,36 +371,20 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
                             value={editName}
                             onChange={e => setEditName(e.target.value)}
                             onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                setDevices(prev => prev.map(d => d.id === device.id ? { ...d, friendlyName: editName } : d));
-                                setEditingDeviceId(null);
-                              }
+                              if (e.key === 'Enter') { setDevices(prev => prev.map(d => d.id === device.id ? { ...d, friendlyName: editName } : d)); setEditingDeviceId(null); }
                               if (e.key === 'Escape') setEditingDeviceId(null);
                             }}
                             placeholder="e.g. Main Floor Safe"
                           />
-                          <button
-                            onClick={() => {
-                              setDevices(prev => prev.map(d => d.id === device.id ? { ...d, friendlyName: editName } : d));
-                              setEditingDeviceId(null);
-                            }}
-                            className="p-1.5 bg-brand text-white rounded-lg hover:bg-brand-dark transition-all"
-                          >
+                          <button onClick={() => { setDevices(prev => prev.map(d => d.id === device.id ? { ...d, friendlyName: editName } : d)); setEditingDeviceId(null); }} className="p-1.5 bg-brand text-white rounded-lg">
                             <Save size={13} />
                           </button>
-                          <button onClick={() => setEditingDeviceId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
-                            <X size={13} />
-                          </button>
+                          <button onClick={() => setEditingDeviceId(null)} className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"><X size={13} /></button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="font-black text-slate-900 text-sm">
-                            {device.friendlyName || <span className="text-slate-400 italic font-medium">Unnamed</span>}
-                          </span>
-                          <button
-                            onClick={() => { setEditingDeviceId(device.id); setEditName(device.friendlyName); }}
-                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-brand transition-all"
-                          >
+                          <span className="font-black text-slate-900 text-sm">{device.friendlyName || <span className="text-slate-400 italic font-medium">Unnamed</span>}</span>
+                          <button onClick={() => { setEditingDeviceId(device.id); setEditName(device.friendlyName); }} className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-brand transition-all">
                             <Edit2 size={13} />
                           </button>
                         </div>
@@ -551,21 +408,11 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
                 <Filter size={14} className="text-slate-400" />
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filters</span>
               </div>
-              <select
-                className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand"
-                value={filterDevice}
-                onChange={e => setFilterDevice(e.target.value)}
-              >
+              <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand" value={filterDevice} onChange={e => setFilterDevice(e.target.value)}>
                 <option value="all">All Devices</option>
-                {devices.map(d => (
-                  <option key={d.id} value={d.id}>{d.friendlyName || d.id}</option>
-                ))}
+                {devices.map(d => <option key={d.id} value={d.id}>{d.friendlyName || d.id}</option>)}
               </select>
-              <select
-                className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand"
-                value={filterResult}
-                onChange={e => setFilterResult(e.target.value as 'all' | 'success' | 'failure')}
-              >
+              <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand" value={filterResult} onChange={e => setFilterResult(e.target.value as 'all' | 'success' | 'failure')}>
                 <option value="all">All Results</option>
                 <option value="success">Successful Only</option>
                 <option value="failure">Failed Only</option>
@@ -582,7 +429,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
             </div>
           </div>
 
-          {/* Summary Stats */}
+          {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard label="Total Entries" value={analytics.total} icon={<Activity size={20} />} />
             <StatCard label="Success Rate" value={`${analytics.successRate}%`} sub={`${analytics.successes} successful`} icon={<CheckCircle2 size={20} />} color="text-emerald-500" />
@@ -729,7 +576,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
             </Section>
           )}
 
-          {/* MQTT Events */}
+          {/* MQTT */}
           {sysAnalytics.mqttDrops.length > 0 && (
             <Section title={`Network Events — ${sysAnalytics.mqttDrops.length} MQTT Disconnects`} defaultOpen={false}>
               <div className="overflow-x-auto">
@@ -797,7 +644,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
                     <FileText size={16} className="text-slate-400" />
                     <div>
                       <p className="font-mono font-bold text-slate-700 text-xs">{imp.filename}</p>
-                      <p className="text-[10px] text-slate-400">{deviceName(imp.deviceId)} · {imp.accessEvents.length} access events · {imp.systemEvents.length} system events · {imp.lineCount} lines</p>
+                      <p className="text-[10px] text-slate-400">{deviceName(imp.deviceId)} · {imp.accessEvents.length} access · {imp.systemEvents.length} system · {imp.lineCount} lines</p>
                     </div>
                   </div>
                   <button onClick={() => removeImport(imp.filename)} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
@@ -808,6 +655,64 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
             </div>
           </Section>
         </>
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Export Report</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">{allAccess.length} access events · {allSystem.length} system events · {devices.length} devices</p>
+              </div>
+              <button onClick={() => setShowExportModal(false)} className="text-slate-400 hover:text-black"><X size={22} /></button>
+            </div>
+
+            <div className="p-8 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Report Title</label>
+                <input className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all" value={exportTitle} onChange={e => setExportTitle(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prepared By</label>
+                <input className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all" value={exportAnalyst} onChange={e => setExportAnalyst(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Report Notes (optional)</label>
+                <textarea className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-medium outline-none focus:border-brand transition-all resize-none h-24" placeholder="Add any context or observations..." value={exportNotes} onChange={e => setExportNotes(e.target.value)} />
+              </div>
+              <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-2">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">What's included</p>
+                <ul className="text-xs text-slate-600 space-y-1">
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Cover page with KPI summary and device list</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Daily access timeline chart</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Authentication method distribution</li>
+                  <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-brand shrink-0" /> Full user activity table</li>
+                  {allAccess.filter(e => e.result === 'failure').length > 0 && (
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" /> Failed attempts ({allAccess.filter(e => e.result === 'failure').length} events)</li>
+                  )}
+                  {sysAnalytics.reboots.length > 0 && (
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" /> System & network events</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+
+            <div className="px-8 py-5 bg-slate-50 border-t flex items-center justify-between">
+              <button onClick={handleExportCSV} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                <FileText size={14} /> Export CSV
+              </button>
+              <div className="flex gap-3">
+                <button onClick={() => setShowExportModal(false)} className="px-5 py-2.5 text-xs font-black uppercase text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
+                <button onClick={handleExportPDF} disabled={isExporting} className="flex items-center gap-2 px-8 py-3 bg-brand text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all disabled:opacity-50">
+                  {isExporting ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                  {isExporting ? 'Generating...' : 'Download PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
