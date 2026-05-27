@@ -251,9 +251,9 @@ export function exportPDF(data: ExportData): void {
     uptime:        toggles.showUptimeSummary !== false,
     mqtt:          toggles.showMqttEvents    !== false,
     reboots:       toggles.showReboots       !== false,
-    healthchecks:  toggles.showHealthchecks  === true,
-    cloudSync:     toggles.showCloudSync     === true,
-    configChanges: toggles.showConfigChanges === true,
+    healthchecks:  toggles.showHealthchecks  !== false,
+    cloudSync:     toggles.showCloudSync     !== false,
+    configChanges: toggles.showConfigChanges !== false,
   };
 
   const deviceName = (id: string) => {
@@ -364,7 +364,7 @@ export function exportPDF(data: ExportData): void {
   ];
   const metaRight = [
     ['Date Range', dateRange ? `${fmtDateShort(dateRange.start)} — ${fmtDateShort(dateRange.end)}` : 'N/A'],
-    ['Total Events', total.toLocaleString()],
+    ['Total Events', (total + systemEvents.length).toLocaleString()],
     ['Devices Analyzed', devices.length.toString()],
   ];
 
@@ -416,7 +416,7 @@ export function exportPDF(data: ExportData): void {
   y += 4;
   const kpiW = (CONTENT_W - 9) / 4;
   const kpis = [
-    { label: 'Total Entries', value: total.toLocaleString(), sub: 'access events', color: C.black },
+    { label: 'Access Events', value: total.toLocaleString(), sub: `${systemEvents.length} system events`, color: C.black },
     { label: 'Success Rate', value: `${successRate}%`, sub: `${successes} granted`, color: C.emerald },
     { label: 'Failed Attempts', value: failures.toLocaleString(), sub: failures > 0 ? 'review required' : 'none detected', color: failures > 0 ? C.red : C.slate300 },
     { label: 'Unique Users', value: uniqueUsers.toLocaleString(), sub: 'by credential ID', color: C.blue },
