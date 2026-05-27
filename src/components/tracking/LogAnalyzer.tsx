@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { parseLogFile } from '../../parsers/logParser';
 import type { AccessEvent, SystemEvent, AppUser, GlobalSettings } from '../../types';
-import { exportPDF, exportCSV } from '../../services/exportReport';
+import { exportPDF, exportCSV, type ExportToggles } from '../../services/exportReport';
 
 interface Props {
   currentUser: AppUser;
@@ -298,7 +298,29 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
 
   const handleExportPDF = async () => {
     setIsExporting(true);
-    try { exportPDF({ accessEvents: allAccess, systemEvents: allSystem, devices, filenames: imports.map(i => i.filename), settings: globalSettings, analystName: exportAnalyst, reportTitle: exportTitle, notes: exportNotes }); }
+    try { exportPDF({
+        accessEvents: allAccess,
+        systemEvents: allSystem,
+        devices,
+        filenames: imports.map(i => i.filename),
+        settings: globalSettings,
+        analystName: exportAnalyst,
+        reportTitle: exportTitle,
+        notes: exportNotes,
+        toggles: {
+          showTimeline:       toggles.showTimeline,
+          showAuthBreakdown:  toggles.showAuthBreakdown,
+          showFailedAttempts: toggles.showFailedAttempts,
+          showUserActivity:   toggles.showUserActivity,
+          showDoorDuration:   toggles.showDoorDuration,
+          showUptimeSummary:  toggles.showUptimeSummary,
+          showMqttEvents:     toggles.showMqttEvents,
+          showReboots:        toggles.showReboots,
+          showHealthchecks:   toggles.showHealthchecks,
+          showCloudSync:      toggles.showCloudSync,
+          showConfigChanges:  toggles.showConfigChanges,
+        },
+      }); }
     catch (e) { console.error('PDF export failed:', e); }
     finally { setTimeout(() => setIsExporting(false), 1500); }
   };
