@@ -3,7 +3,7 @@ import {
   Upload, Activity, AlertTriangle, CheckCircle2, Users, RefreshCw, Clock,
   Trash2, ChevronDown, ChevronUp, X, Database, Cpu, Edit2, Save,
   Filter, FileText, Download, Wifi, WifiOff, RotateCcw, Heart,
-  Settings2, ToggleLeft, ToggleRight, Clock, Zap, Cloud,
+  Settings2, ToggleLeft, ToggleRight, Zap, Cloud,
 } from 'lucide-react';
 import {
   AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis,
@@ -252,7 +252,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
       if (result) uptimeByDevice[d.id] = result;
     }
 
-    return { reboots, errorReboots, mqttDrops, mqttEvents, healthchecks, cloudSyncs, configChanges, uptimeByDevice };
+    return { reboots, errorReboots, mqttDrops, mqttEvents, healthchecks, cloudSyncs, syncSkips, configChanges, uptimeByDevice };
   }, [allSystem, devices]);
 
   const deviceName = (id: string) => {
