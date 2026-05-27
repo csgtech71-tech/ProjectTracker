@@ -442,7 +442,7 @@ export const ProjectTracking: React.FC<Props> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.log"
+            accept=".txt,.log,.csv"
             multiple
             className="hidden"
             onChange={handleFileUpload}
