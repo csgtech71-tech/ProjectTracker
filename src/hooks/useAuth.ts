@@ -19,8 +19,7 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Check existing session immediately — don't wait for onAuthStateChange
-    // INITIAL_SESSION which can lag during token refresh and cause spinning
+    // Check existing session immediately on mount
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
       if (!session) {
@@ -38,12 +37,11 @@ export function useAuth() {
       setLoading(false);
     });
 
-    // Subscribe to ongoing auth changes (sign in, sign out, token refresh)
+    // Subscribe to ongoing auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
 
-        // Skip — handled above by getSession()
         if (event === 'INITIAL_SESSION') return;
 
         if (event === 'SIGNED_OUT' || !session) {
@@ -73,12 +71,6 @@ export function useAuth() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
-
-  return { user, loading, authError, isAdmin: user?.role === 'admin' };
-}
-
-    return () => subscription.unsubscribe();
   }, []);
 
   return { user, loading, authError, isAdmin: user?.role === 'admin' };
