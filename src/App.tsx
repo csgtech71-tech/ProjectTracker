@@ -423,7 +423,7 @@ export default function App() {
                   : <NoProjectSelected />
                 )}
                 {activeTab === 'analyzer' && (
-                  <LogAnalyzer currentUser={user} />
+                  <LogAnalyzer currentUser={user} globalSettings={globalSettings} />
                 )}
                 {activeTab === 'settings' && (
                   <AdminSettings settings={globalSettings} currentUser={user} onUpdateSettings={handleUpdateSettings} />
