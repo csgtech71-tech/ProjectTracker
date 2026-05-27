@@ -859,9 +859,20 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
                   { key: 'showUserActivity', label: 'User Activity' },
                   { key: 'showFailedAttempts', label: `Failed & Incomplete (${analytics.failures + analytics.incomplete})` },
                   { key: 'showUptimeSummary', label: 'Connection Uptime' },
-                  { key: 'showReboots', label: `Reboots (${sysAnalytics.reboots.length})` },
                   { key: 'showMqttEvents', label: `MQTT Events (${sysAnalytics.mqttDrops.length} drops)` },
-                ].map(item => (
+                  { key: 'showReboots', label: `Reboots (${sysAnalytics.reboots.length})` },
+                  { key: 'showHealthchecks', label: `Health Checks (${sysAnalytics.healthchecks.length})` },
+                  { key: 'showCloudSync', label: `Cloud Sync (${sysAnalytics.cloudSyncs.length + sysAnalytics.syncSkips.length} events)` },
+                  { key: 'showConfigChanges', label: `Config Changes (${sysAnalytics.configChanges.length})` },
+                ].filter(item => {
+                  // only show items that have data
+                  if (item.key === 'showMqttEvents' && sysAnalytics.mqttDrops.length === 0) return false;
+                  if (item.key === 'showReboots' && sysAnalytics.reboots.length === 0) return false;
+                  if (item.key === 'showHealthchecks' && sysAnalytics.healthchecks.length === 0) return false;
+                  if (item.key === 'showCloudSync' && sysAnalytics.cloudSyncs.length === 0 && sysAnalytics.syncSkips.length === 0) return false;
+                  if (item.key === 'showConfigChanges' && sysAnalytics.configChanges.length === 0) return false;
+                  return true;
+                }).map(item => (
                   <label key={item.key} className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="accent-brand" checked={toggles[item.key as keyof DisplayToggles]} onChange={e => setToggle(item.key as keyof DisplayToggles)(e.target.checked)} />
                     <span className="text-xs text-slate-600">{item.label}</span>
