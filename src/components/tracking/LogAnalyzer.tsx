@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
-  Upload, Activity, AlertTriangle, CheckCircle2, Users, RefreshCw,
+  Upload, Activity, AlertTriangle, CheckCircle2, Users, RefreshCw, Clock,
   Trash2, ChevronDown, ChevronUp, X, Database, Cpu, Edit2, Save,
   Filter, FileText, Download, Wifi, WifiOff, RotateCcw, Heart,
   Settings2, ToggleLeft, ToggleRight, Clock, Zap, Cloud,
@@ -183,7 +183,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
   const [ingestResults, setIngestResults] = useState<{ filename: string; ok: boolean; msg: string }[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [filterDevice, setFilterDevice] = useState('all');
-  const [filterResult, setFilterResult] = useState<'all' | 'success' | 'failure'>('all');
+  const [filterResult, setFilterResult] = useState<'all' | 'success' | 'failure' | 'incomplete'>('all');
   const [filterStart, setFilterStart] = useState('');
   const [filterEnd, setFilterEnd] = useState('');
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
@@ -214,6 +214,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
     const total = filtered.length;
     const successes = filtered.filter(e => e.result === 'success').length;
     const failures = filtered.filter(e => e.result === 'failure').length;
+    const incomplete = filtered.filter(e => e.result === 'incomplete').length;
     const successRate = total > 0 ? ((successes / total) * 100).toFixed(1) : '0';
     const durations = filtered.filter(e => e.door_open_ms && e.door_open_ms > 0).map(e => e.door_open_ms!);
     const avgDuration = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
@@ -230,7 +231,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
       if (e.result === 'success') userMap[uid].success++; else userMap[uid].failure++;
       if (e.occurred_at > userMap[uid].lastSeen) userMap[uid].lastSeen = e.occurred_at;
     }
-    return { total, successes, failures, successRate, avgDuration, uniqueUsers, pieData, timeline, userActivity: Object.values(userMap).sort((a, b) => b.total - a.total) };
+    return { total, successes, failures, incomplete, successRate, avgDuration, uniqueUsers, pieData, timeline, userActivity: Object.values(userMap).sort((a, b) => b.total - a.total) };
   }, [filtered]);
 
   const sysAnalytics = useMemo(() => {
@@ -241,6 +242,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
     const mqttDrops = mqttEvents.filter(e => e.event_type === 'mqtt_disconnect');
     const healthchecks = allSystem.filter(e => e.event_type === 'healthcheck');
     const cloudSyncs = allSystem.filter(e => e.event_type === 'cloud_sync');
+    const syncSkips = allSystem.filter(e => e.event_type === 'sync_skipped');
     const configChanges = allSystem.filter(e => e.event_type === 'config_change');
 
     // Compute per-device uptime
@@ -456,8 +458,11 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
 
           {/* Summary KPI row */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard label="Access Events" value={analytics.total} sub={`${analytics.successes} success · ${analytics.failures} failed`} icon={<Activity size={20} />} />
+            <StatCard label="Access Events" value={analytics.total} sub={`${analytics.successes} granted · ${analytics.failures} failed${analytics.incomplete > 0 ? ` · ${analytics.incomplete} incomplete` : ''}`} icon={<Activity size={20} />} />
             <StatCard label="Success Rate" value={`${analytics.successRate}%`} icon={<CheckCircle2 size={20} />} color="text-emerald-500" />
+            {analytics.incomplete > 0 && (
+              <StatCard label="Incomplete" value={analytics.incomplete} sub="log truncated mid-auth" icon={<Clock size={20} />} color="text-amber-500" />
+            )}
             {overallUptime !== null
               ? <StatCard label="Avg Uptime" value={`${overallUptime}%`} sub={`${sysAnalytics.mqttDrops.length} disconnects`} icon={<Wifi size={20} />} color={parseFloat(overallUptime) > 95 ? 'text-emerald-500' : 'text-amber-500'} />
               : <StatCard label="System Events" value={totalSystemEvents} sub="healthchecks, syncs, etc" icon={<Heart size={20} />} color="text-purple-500" />
@@ -473,10 +478,11 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
                 <option value="all">All Devices</option>
                 {devices.map(d => <option key={d.id} value={d.id}>{d.friendlyName || d.id}</option>)}
               </select>
-              <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand" value={filterResult} onChange={e => setFilterResult(e.target.value as any)}>
+              <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand" value={filterResult} onChange={e => setFilterResult(e.target.value as 'all' | 'success' | 'failure' | 'incomplete')}>
                 <option value="all">All Results</option>
                 <option value="success">Successful Only</option>
                 <option value="failure">Failed Only</option>
+                <option value="incomplete">Incomplete Only</option>
               </select>
               <input type="date" className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-brand" value={filterStart} onChange={e => setFilterStart(e.target.value)} />
               <span className="text-slate-300">→</span>
@@ -533,7 +539,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
           )}
 
           {toggles.showFailedAttempts && analytics.failures > 0 && (
-            <Section title={`Failed Attempts`} badge={`${analytics.failures}`} badgeColor="bg-red-100 text-red-600">
+            <Section title={`Failed & Incomplete Attempts`} badge={`${analytics.failures + analytics.incomplete}`} badgeColor="bg-red-100 text-red-600">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -542,13 +548,18 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {filtered.filter(e => e.result === 'failure').slice(0, 100).map((e, i) => (
+                    {filtered.filter(e => e.result === 'failure' || e.result === 'incomplete').slice(0, 100).map((e, i) => (
                       <tr key={i} className="hover:bg-red-50/50 transition-colors">
                         <td className="py-2.5 pr-4 font-mono text-slate-500">{fmtDate(e.occurred_at)}</td>
                         <td className="py-2.5 pr-4 font-bold text-slate-700">{deviceName(e.device_id)}</td>
-                        <td className="py-2.5 pr-4"><span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase" style={{ background: (AUTH_COLORS[e.auth_type] || '#94a3b8') + '20', color: AUTH_COLORS[e.auth_type] || '#94a3b8' }}>{e.auth_type}</span></td>
+                        <td className="py-2.5 pr-4">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-1 rounded-lg text-[9px] font-black uppercase" style={{ background: (AUTH_COLORS[e.auth_type] || '#94a3b8') + '20', color: AUTH_COLORS[e.auth_type] || '#94a3b8' }}>{e.auth_type}</span>
+                            {e.result === 'incomplete' && <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase bg-amber-100 text-amber-700">Incomplete</span>}
+                          </div>
+                        </td>
                         <td className="py-2.5 pr-4 font-mono text-slate-500">{e.user_id_raw || '—'}</td>
-                        <td className="py-2.5 text-slate-400">{e.failure_reason || '—'}</td>
+                        <td className="py-2.5 text-slate-400">{e.result === 'incomplete' ? 'Log truncated mid-session' : (e.failure_reason || '—')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -730,16 +741,22 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
             </Section>
           )}
 
-          {toggles.showCloudSync && sysAnalytics.cloudSyncs.length > 0 && (
-            <Section title="Cloud Sync Events" badge={`${sysAnalytics.cloudSyncs.length}`} defaultOpen={false}>
+          {toggles.showCloudSync && (sysAnalytics.cloudSyncs.length > 0 || sysAnalytics.syncSkips.length > 0) && (
+            <Section title="Cloud Sync Events" badge={`${sysAnalytics.cloudSyncs.length} synced · ${sysAnalytics.syncSkips.length} skipped`} defaultOpen={false}>
+              {sysAnalytics.syncSkips.length > 0 && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700">
+                  <span className="font-black">{sysAnalytics.syncSkips.length} sync{sysAnalytics.syncSkips.length !== 1 ? 's' : ''} skipped</span> — device opened too recently relative to syncAfterOpen threshold.
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
-                  <thead><tr className="text-left text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100"><th className="pb-3 pr-4">Time</th><th className="pb-3 pr-4">Device</th><th className="pb-3">Details</th></tr></thead>
+                  <thead><tr className="text-left text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100"><th className="pb-3 pr-4">Time</th><th className="pb-3 pr-4">Device</th><th className="pb-3 pr-4">Type</th><th className="pb-3">Details</th></tr></thead>
                   <tbody className="divide-y divide-slate-50">
-                    {sysAnalytics.cloudSyncs.map((e, i) => (
-                      <tr key={i}>
+                    {[...sysAnalytics.cloudSyncs, ...sysAnalytics.syncSkips].sort((a,b) => a.occurred_at.localeCompare(b.occurred_at)).map((e, i) => (
+                      <tr key={i} className={e.event_type === 'sync_skipped' ? 'bg-amber-50/40' : ''}>
                         <td className="py-2.5 pr-4 font-mono text-slate-500">{fmtDate(e.occurred_at)}</td>
                         <td className="py-2.5 pr-4 font-bold text-slate-700">{deviceName(e.device_id)}</td>
+                        <td className="py-2.5 pr-4"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${e.event_type === 'sync_skipped' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{e.event_type === 'sync_skipped' ? 'Skipped' : 'Synced'}</span></td>
                         <td className="py-2.5 text-slate-400">{e.details}</td>
                       </tr>
                     ))}
@@ -818,7 +835,7 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
                   { key: 'showTimeline', label: 'Access Timeline' },
                   { key: 'showAuthBreakdown', label: 'Auth Method Breakdown' },
                   { key: 'showUserActivity', label: 'User Activity' },
-                  { key: 'showFailedAttempts', label: `Failed Attempts (${analytics.failures})` },
+                  { key: 'showFailedAttempts', label: `Failed & Incomplete (${analytics.failures + analytics.incomplete})` },
                   { key: 'showUptimeSummary', label: 'Connection Uptime' },
                   { key: 'showReboots', label: `Reboots (${sysAnalytics.reboots.length})` },
                   { key: 'showMqttEvents', label: `MQTT Events (${sysAnalytics.mqttDrops.length} drops)` },
