@@ -32,9 +32,7 @@ const ANSI_RE = /\x1B\[[0-9;]*[a-zA-Z]/g;
 const TXT_LINE_RE =
   /^(\d{2}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}):\s+\[([a-f0-9A-F]{12})\]\s+(info|warn|error)\s+\[([^\]]+)\]\s+(.+)$/;
 
-function stripAnsi(line: string): string {
-  return line.replace(ANSI_RE, '');
-}
+function stripAnsi(s: string) { return s.replace(ANSI_RE, ''); }
 
 function parseTxtTimestamp(ts: string): Date {
   const [date, time] = ts.split(' ');
@@ -44,62 +42,54 @@ function parseTxtTimestamp(ts: string): Date {
 
 function isCsvFormat(text: string): boolean {
   const first = text.split(/\r?\n/)[0]?.toLowerCase() || '';
-  return first.includes('enqueuedtimedevice') || first.includes('_ts,');
+  return first.includes('enqueuedtimedevice') || (first.includes('_ts') && first.includes('message'));
 }
 
 // Extract device ID from CSV filename: "device-logs-08-b6-1f-b2-63-9c-2026-..." → "08b61fb2639c"
 function deviceIdFromFilename(filename: string): string | null {
   const m = filename.match(/([0-9a-f]{2}(?:-[0-9a-f]{2}){5})/i);
-  if (!m) return null;
-  return m[1].replace(/-/g, '').toLowerCase();
+  return m ? m[1].replace(/-/g, '').toLowerCase() : null;
 }
 
-// Infer module from message (CSV has no [module] tag)
-function inferModule(message: string): string {
+// Infer module from message content (CSV has no [module] tag)
+function inferModule(msg: string): string {
   // Access / auth
-  if (/card tapped on Door/i.test(message)) return 'wiegand';
-  if (/Signal to unlock/i.test(message)) return 'doorRelay';
-  if (/Setting the GPIO signal to lock/i.test(message)) return 'doorRelay';
-  if (/Door \d+ was (opened|closed)/i.test(message)) return 'doorSensor';
-  if (/Verifying that door was/i.test(message)) return 'doorSensor';
-  if (/All sensor checks verified/i.test(message)) return 'doorSensor';
-  if (/PIN digit|PIN is correct|PIN timing|Prompting.*PIN|entered a PIN/i.test(message)) return 'crdHndlr';
-  if (/UserID entered|cloud authorized|authorized the card|local cache.*PIN|Uploading credentials/i.test(message)) return 'crdHndlr';
-  if (/1:1 fingerprint|authorized fingerprint|session_interrupted|denied|timed out/i.test(message)) return 'crdHndlr';
-  if (/Successful 1:N match|SFM/i.test(message)) return 'SFM';
-  if (/The user pressed \[/i.test(message)) return 'crdHndlr';
-  if (/This card is in our local cache/i.test(message)) return 'crdHndlr';
+  if (/card tapped on Door/i.test(msg)) return 'wiegand';
+  if (/Signal to unlock/i.test(msg)) return 'doorRelay';
+  if (/Setting the GPIO signal to lock/i.test(msg)) return 'doorRelay';
+  if (/Door \d+ was (opened|closed)/i.test(msg)) return 'doorSensor';
+  if (/Verifying that door was|All sensor checks verified/i.test(msg)) return 'doorSensor';
+  if (/PIN digit|PIN is correct|PIN timing|Prompting.*PIN|entered a PIN/i.test(msg)) return 'crdHndlr';
+  if (/UserID entered|cloud authorized|authorized the card|local cache.*PIN|Uploading credentials/i.test(msg)) return 'crdHndlr';
+  if (/1:1 fingerprint|authorized fingerprint|denied|timed out/i.test(msg)) return 'crdHndlr';
+  if (/The user pressed \[/i.test(msg)) return 'crdHndlr';
+  if (/This card is in our local cache/i.test(msg)) return 'crdHndlr';
+  if (/Successful 1:N match/i.test(msg)) return 'SFM';
   // Network
-  if (/MQTT|Disconnected|connection lost|Connected successfully|Missed more than/i.test(message)) return 'MQTT';
-  // System
-  if (/BOOTED|error reboots|Last boot was|Rebooted \d+ times/i.test(message)) return 'stats';
-  if (/Restarting/i.test(message)) return 'watchdog';
-  if (/FIELD SUPPORT DATA|Gathering tech support|Firmware |IP address is|Network is via|Wifi signal|cert expires|Local cache has|Configured for/i.test(message)) return 'stats';
-  if (/FAILURE/i.test(message)) return 'eventLog';
-  if (/Setting NVS config|Configuring|Received a config|Sending value for key|rfidEnabled/i.test(message)) return 'config';
-  if (/cloudSync|Processed a new/i.test(message)) return 'sync';
-  if (/Skipping Device Sync/i.test(message)) return 'sync';
-  if (/Scan received/i.test(message)) return 'scanner';
-  if (/Deleting config key/i.test(message)) return 'config';
+  if (/MQTT|Disconnected|connection lost|Connected successfully|Missed more than/i.test(msg)) return 'MQTT';
+  // System / health
+  if (/BOOTED|error reboots|Last boot was|Rebooted \d+ times/i.test(msg)) return 'stats';
+  if (/Restarting/i.test(msg)) return 'watchdog';
+  if (/FIELD SUPPORT DATA|Gathering tech support|Firmware |IP address is|Network is via|Wifi signal|cert expires|Local cache has|Configured for/i.test(msg)) return 'stats';
+  if (/FAILURE/i.test(msg)) return 'eventLog';
+  // Config / sync
+  if (/Setting NVS config|Configuring|Received a config|Sending value for key|rfidEnabled|Deleting config key/i.test(msg)) return 'config';
+  if (/cloudSync|Processed a new cloudSync/i.test(msg)) return 'sync';
+  if (/Skipping Device Sync/i.test(msg)) return 'sync';
+  if (/Scan received/i.test(msg)) return 'scanner';
   return 'other';
 }
 
 function parseCsvLine(line: string): string[] {
   const fields: string[] = [];
-  let current = '';
-  let inQuotes = false;
+  let cur = ''; let inQ = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-      else inQuotes = !inQuotes;
-    } else if (ch === ',' && !inQuotes) {
-      fields.push(current); current = '';
-    } else {
-      current += ch;
-    }
+    if (ch === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+    else if (ch === ',' && !inQ) { fields.push(cur); cur = ''; }
+    else cur += ch;
   }
-  fields.push(current);
+  fields.push(cur);
   return fields;
 }
 
@@ -119,16 +109,16 @@ function parseCsvText(text: string, filename: string): RawEvent[] {
     if (!line) continue;
     const fields = parseCsvLine(line);
     if (fields.length <= Math.max(tsCol, levelCol, msgCol)) continue;
-    const timestampStr = fields[tsCol]?.replace(/"/g, '').trim();
+    const ts = fields[tsCol]?.replace(/"/g, '').trim();
     const level = fields[levelCol]?.replace(/"/g, '').trim();
     const message = fields[msgCol]?.replace(/^"|"$/g, '').trim();
-    if (!timestampStr || !message) continue;
-    const timestamp = new Date(timestampStr);
+    if (!ts || !message) continue;
+    const timestamp = new Date(ts);
     if (isNaN(timestamp.getTime())) continue;
     events.push({
       timestamp,
       deviceId,
-      level: (['info', 'warn', 'error'].includes(level) ? level : 'info') as RawEvent['level'],
+      level: (['info','warn','error'].includes(level) ? level : 'info') as RawEvent['level'],
       module: inferModule(message),
       message,
       raw: line,
@@ -181,18 +171,12 @@ export function parseLogFile(text: string, filename?: string): ParseResult {
     for (const e of events) {
       if (e.module !== 'stats') continue;
       if (e.message.includes('Configured for')) configuredAuthType = e.message.replace('Configured for ', '').trim();
-      const fwMatch = e.message.match(/Firmware ([\d.]+)/);
-      if (fwMatch) firmware = fwMatch[1];
-      const ipMatch = e.message.match(/IP address is ([\d.]+)/);
-      if (ipMatch) ipAddress = ipMatch[1];
-      const ssidMatch = e.message.match(/Network is via Wifi \(SSID\d+ \/ ([^)]+)\)/);
-      if (ssidMatch) wifiSsid = ssidMatch[1];
-      const rssiMatch = e.message.match(/Wifi signal strength is (-\d+)dBm/);
-      if (rssiMatch) wifiSignalDbm = parseInt(rssiMatch[1]);
-      const certMatch = e.message.match(/cert expires (\d{4}-\d{2}-\d{2})/);
-      if (certMatch) certExpires = certMatch[1];
-      const credMatch = e.message.match(/Local cache has (\d+) credentials/);
-      if (credMatch) credentialCount = parseInt(credMatch[1]);
+      const fwM = e.message.match(/Firmware ([\d.]+)/); if (fwM) firmware = fwM[1];
+      const ipM = e.message.match(/IP address is ([\d.]+)/); if (ipM) ipAddress = ipM[1];
+      const ssM = e.message.match(/Network is via Wifi \(SSID\d+ \/ ([^)]+)\)/); if (ssM) wifiSsid = ssM[1];
+      const rsM = e.message.match(/Wifi signal strength is (-\d+)dBm/); if (rsM) wifiSignalDbm = parseInt(rsM[1]);
+      const ceM = e.message.match(/cert expires (\d{4}-\d{2}-\d{2})/); if (ceM) certExpires = ceM[1];
+      const ccM = e.message.match(/Local cache has (\d+) credentials/); if (ccM) credentialCount = parseInt(ccM[1]);
     }
   }
 
@@ -201,36 +185,40 @@ export function parseLogFile(text: string, filename?: string): ParseResult {
 
 // ─── per-device event processing ─────────────────────────────────────────────
 
-function processDeviceEvents(events: RawEvent[], accessEvents: AccessEvent[], systemEvents: SystemEvent[]): void {
+function processDeviceEvents(
+  events: RawEvent[],
+  accessEvents: AccessEvent[],
+  systemEvents: SystemEvent[]
+): void {
   const deviceId = events[0]?.deviceId;
   if (!deviceId) return;
 
+  const lastTs = events[events.length - 1]?.timestamp;
   let sessionStart = -1;
 
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     const { module, message } = e;
 
-    // ── SYSTEM EVENTS ──────────────────────────────────────────────────────
+    // ── SYSTEM EVENTS ────────────────────────────────────────────────────────
 
     if (module === 'MQTT') {
-      if (/Disconnected|connection lost|transmission failed/i.test(message)) {
+      if (/Disconnected|connection lost|transmission failed/i.test(message))
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_disconnect', module, details: message, raw_line: e.raw });
-      } else if (/Connected successfully/i.test(message)) {
+      else if (/Connected successfully/i.test(message))
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_connect', module, details: message, raw_line: e.raw });
-      } else if (/Missed more than/i.test(message)) {
+      else if (/Missed more than/i.test(message))
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'watchdog_reconnect', module, details: message, raw_line: e.raw });
-      }
       continue;
     }
 
     if (module === 'stats' && /------- BOOTED/.test(message)) {
-      const lookahead = events.slice(i, Math.min(i + 6, events.length));
-      const errorLine = lookahead.find(x => /(\d+) error reboots/.test(x.message));
-      const errorCount = errorLine ? parseInt(errorLine.message.match(/(\d+) error reboots/)![1]) : 0;
-      const bootTypeLine = lookahead.find(x => /Last boot was/.test(x.message));
-      const rebootCountLine = lookahead.find(x => /Rebooted (\d+) times/.test(x.message));
-      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: errorCount > 0 ? 'reboot_error' : 'reboot_normal', module, details: [bootTypeLine?.message, rebootCountLine?.message].filter(Boolean).join(' | ') || message, raw_line: e.raw });
+      const la = events.slice(i, Math.min(i + 6, events.length));
+      const errLine = la.find(x => /(\d+) error reboots/.test(x.message));
+      const errCount = errLine ? parseInt(errLine.message.match(/(\d+) error reboots/)![1]) : 0;
+      const bootTypeLine = la.find(x => /Last boot was/.test(x.message));
+      const rebootCountLine = la.find(x => /Rebooted (\d+) times/.test(x.message));
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: errCount > 0 ? 'reboot_error' : 'reboot_normal', module, details: [bootTypeLine?.message, rebootCountLine?.message].filter(Boolean).join(' | ') || message, raw_line: e.raw });
       continue;
     }
 
@@ -255,69 +243,77 @@ function processDeviceEvents(events: RawEvent[], accessEvents: AccessEvent[], sy
     }
 
     if (module === 'sync') {
-      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'cloud_sync', module, details: message, raw_line: e.raw });
+      // Distinguish skipped syncs from actual syncs
+      const evtType = /Skipping Device Sync/i.test(message) ? 'sync_skipped' : 'cloud_sync';
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: evtType, module, details: message, raw_line: e.raw });
       continue;
     }
 
-    // ── ACCESS EVENTS ──────────────────────────────────────────────────────
+    // ── ACCESS EVENTS ─────────────────────────────────────────────────────────
 
-    // TXT format: card tap starts session
+    // TXT: card tap starts session
     if (module === 'wiegand' && /card tapped on Door/i.test(message)) {
       if (sessionStart >= 0) {
         const dangling = events.slice(sessionStart, i);
         if (e.timestamp.getTime() - events[sessionStart].timestamp.getTime() > 5000) {
-          accessEvents.push({ device_id: deviceId, occurred_at: events[sessionStart].timestamp.toISOString(), auth_type: detectAuthType(dangling), result: 'failure', failure_reason: 'session_interrupted', ...extractCardInfo(dangling) });
+          accessEvents.push(buildIncompleteOrFailed(dangling, deviceId, lastTs));
         }
       }
       sessionStart = i;
       continue;
     }
 
-    // CSV format: UserID entered starts session (no wiegand card tap in CSV)
+    // CSV: first PIN digit (UID entry phase) starts session
+    if (module === 'crdHndlr' && /The user entered a PIN digit/i.test(message) && sessionStart < 0) {
+      sessionStart = i;
+      continue;
+    }
+
+    // Also start on UserID entered if we somehow missed the first digit
     if (module === 'crdHndlr' && /UserID entered/i.test(message) && sessionStart < 0) {
       sessionStart = i;
       continue;
     }
 
-    // Also start session on first PIN digit if nothing else started it
-    if (module === 'crdHndlr' && /PIN digit|entered a PIN digit/i.test(message) && sessionStart < 0) {
-      sessionStart = i;
-      continue;
-    }
-
-    // Successful unlock
+    // Successful unlock — end of successful auth session
     if (module === 'doorRelay' && /Signal to unlock/i.test(message)) {
       const doorMatch = message.match(/door (\d+)/i);
       const doorId = doorMatch ? parseInt(doorMatch[1]) : 0;
       const sessionEvents = sessionStart >= 0 ? events.slice(sessionStart, i + 1) : [e];
 
+      // Look ahead for door open then door close (skip sensor bounce — rapid close/open within 2s)
       let doorOpenAt: string | undefined;
       let doorCloseAt: string | undefined;
-      for (let j = i + 1; j < Math.min(i + 20, events.length); j++) {
-        if (/Door \d+ was opened/i.test(events[j].message) && !doorOpenAt) doorOpenAt = events[j].timestamp.toISOString();
-        if (/Door \d+ was closed/i.test(events[j].message)) { doorCloseAt = events[j].timestamp.toISOString(); break; }
+      for (let j = i + 1; j < Math.min(i + 30, events.length); j++) {
+        const jMsg = events[j].message;
+        // First real open
+        if (/Door \d+ was opened/i.test(jMsg) && !doorOpenAt) {
+          doorOpenAt = events[j].timestamp.toISOString();
+        }
+        // First close that happens >2s after open (ignore sensor bounce)
+        if (/Door \d+ was closed/i.test(jMsg) && doorOpenAt) {
+          const openTs = new Date(doorOpenAt).getTime();
+          const closeTs = events[j].timestamp.getTime();
+          if (closeTs - openTs > 2000) {
+            doorCloseAt = events[j].timestamp.toISOString();
+            break;
+          }
+        }
       }
-
-      const sfmEvent = sessionEvents.find(x => x.module === 'SFM' && /match/i.test(x.message));
-      const userIdMatch = sfmEvent?.message.match(/UserId (\d+)/);
-      const cardEvent = sessionEvents.find(x => x.module === 'wiegand');
-      const cardBitsMatch = cardEvent?.message.match(/(\d+)-bit card/);
-
-      // For CSV PIN timing line, extract user ID from hex code
-      const pinTimingEvent = sessionEvents.find(x => /PIN timing:/i.test(x.message));
-      const pinUserIdMatch = pinTimingEvent?.message.match(/PIN timing:\s+([A-F0-9]{4,8})/i);
 
       accessEvents.push({
         device_id: deviceId,
         occurred_at: sessionEvents[0].timestamp.toISOString(),
         auth_type: detectAuthType(sessionEvents),
         result: 'success',
-        user_id_raw: userIdMatch?.[1] || pinUserIdMatch?.[1],
-        card_bits: cardBitsMatch ? parseInt(cardBitsMatch[1]) : undefined,
+        user_id_raw: extractUserId(sessionEvents),
+        card_bits: extractCardBits(sessionEvents),
         door_id: doorId,
         door_open_at: doorOpenAt,
         door_close_at: doorCloseAt,
-        door_open_ms: doorOpenAt && doorCloseAt ? new Date(doorCloseAt).getTime() - new Date(doorOpenAt).getTime() : undefined,
+        door_open_ms: doorOpenAt && doorCloseAt
+          ? new Date(doorCloseAt).getTime() - new Date(doorOpenAt).getTime()
+          : undefined,
       });
       sessionStart = -1;
       continue;
@@ -326,54 +322,89 @@ function processDeviceEvents(events: RawEvent[], accessEvents: AccessEvent[], sy
     // Explicit denial or timeout
     if (module === 'crdHndlr' && /denied|failed|timeout/i.test(message) && sessionStart >= 0) {
       const sessionEvents = events.slice(sessionStart, i + 1);
-      accessEvents.push({ device_id: deviceId, occurred_at: sessionEvents[0].timestamp.toISOString(), auth_type: detectAuthType(sessionEvents), result: 'failure', failure_reason: message, ...extractCardInfo(sessionEvents) });
+      accessEvents.push({
+        device_id: deviceId,
+        occurred_at: sessionEvents[0].timestamp.toISOString(),
+        auth_type: detectAuthType(sessionEvents),
+        result: 'failure',
+        failure_reason: message,
+        user_id_raw: extractUserId(sessionEvents),
+        card_bits: extractCardBits(sessionEvents),
+      });
       sessionStart = -1;
       continue;
     }
   }
 
-  // Dangling session
+  // Dangling session at end of file
   if (sessionStart >= 0) {
     const sessionEvents = events.slice(sessionStart);
-    const timeDiff = events[events.length - 1].timestamp.getTime() - events[sessionStart].timestamp.getTime();
-    if (timeDiff > 30000) {
-      accessEvents.push({ device_id: deviceId, occurred_at: events[sessionStart].timestamp.toISOString(), auth_type: detectAuthType(sessionEvents), result: 'failure', failure_reason: 'no_resolution', ...extractCardInfo(sessionEvents) });
-    }
+    accessEvents.push(buildIncompleteOrFailed(sessionEvents, deviceId, lastTs));
   }
+}
+
+// Decide whether a dangling session is 'incomplete' (cut off by log end) or 'failure' (timed out)
+function buildIncompleteOrFailed(
+  sessionEvents: RawEvent[],
+  deviceId: string,
+  logLastTs: Date | undefined
+): AccessEvent {
+  const sessionStart = sessionEvents[0].timestamp;
+  const sessionLast = sessionEvents[sessionEvents.length - 1].timestamp;
+  const logEnd = logLastTs ?? sessionLast;
+
+  // If the session's last event is within 120s of the log's last timestamp,
+  // it's likely cut off mid-flight — mark as incomplete
+  const gapToLogEnd = logEnd.getTime() - sessionLast.getTime();
+  const isIncomplete = gapToLogEnd < 120000;
+
+  return {
+    device_id: deviceId,
+    occurred_at: sessionStart.toISOString(),
+    auth_type: detectAuthType(sessionEvents),
+    result: isIncomplete ? 'incomplete' : 'failure',
+    failure_reason: isIncomplete ? 'log_truncated' : 'no_resolution',
+    user_id_raw: extractUserId(sessionEvents),
+    card_bits: extractCardBits(sessionEvents),
+  };
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function detectAuthType(sessionEvents: RawEvent[]): HardwareAuthType {
-  const has = (pred: (e: RawEvent) => boolean) => sessionEvents.some(pred);
-  const hasCard = has(e => e.module === 'wiegand' && /card tapped/i.test(e.message));
-  const hasFingerprint = has(e => e.module === 'SFM' && /match/i.test(e.message));
-  const has1to1 = has(e => e.module === 'crdHndlr' && /1:1 fingerprint/i.test(e.message));
-  const hasPIN = has(e => e.module === 'crdHndlr' && /PIN digit|entered a PIN|PIN is correct|PIN timing/i.test(e.message));
-  const hasUserId = has(e => e.module === 'crdHndlr' && /UserID entered/i.test(e.message));
-  const hasLocalCache = has(e => /local cache.*PIN/i.test(e.message));
+function detectAuthType(se: RawEvent[]): HardwareAuthType {
+  const has = (p: (e: RawEvent) => boolean) => se.some(p);
+  const hasCard    = has(e => e.module === 'wiegand' && /card tapped/i.test(e.message));
+  const hasFP      = has(e => e.module === 'SFM' && /match/i.test(e.message));
+  const has1to1    = has(e => e.module === 'crdHndlr' && /1:1 fingerprint/i.test(e.message));
+  const hasPIN     = has(e => e.module === 'crdHndlr' && /PIN digit|entered a PIN|PIN is correct|PIN timing/i.test(e.message));
+  const hasUserId  = has(e => e.module === 'crdHndlr' && /UserID entered/i.test(e.message));
+  const hasCache   = has(e => /local cache.*PIN/i.test(e.message));
 
-  if (!hasCard && hasFingerprint) return 'Fingerprint Only';
-  if (hasCard && hasFingerprint && hasPIN && hasUserId) return 'Card/User Id + Fingerprint (Pin Fallback)';
-  if (hasCard && hasFingerprint && hasUserId) return 'Card/User Id/Fingerprint';
+  if (!hasCard && hasFP) return 'Fingerprint Only';
+  if (hasCard && hasFP && hasPIN && hasUserId) return 'Card/User Id + Fingerprint (Pin Fallback)';
+  if (hasCard && hasFP && hasUserId) return 'Card/User Id/Fingerprint';
   if (hasCard && has1to1 && hasUserId) return 'Card/User Id + Fingerprint';
   if (hasCard && hasPIN && hasUserId) return 'Card/User Id + Pin';
   if (hasCard && hasPIN) return 'Card + Pin';
-  // CSV PIN-only flow: UserID entered + PIN digits + local cache check
-  if (!hasCard && hasPIN && (hasUserId || hasLocalCache)) return 'Card/User Id + Pin';
+  // CSV PIN-only flow: digits → UserID entered → cache check → PIN
+  if (!hasCard && hasPIN && (hasUserId || hasCache)) return 'Card/User Id + Pin';
   if (hasCard) return 'Card Only';
   return 'Card + Pin';
 }
 
-function extractCardInfo(sessionEvents: RawEvent[]): Pick<AccessEvent, 'user_id_raw' | 'card_bits'> {
-  const sfmEvent = sessionEvents.find(x => x.module === 'SFM' && /match/i.test(x.message));
-  const userIdMatch = sfmEvent?.message.match(/UserId (\d+)/);
-  const cardEvent = sessionEvents.find(x => x.module === 'wiegand');
-  const cardBitsMatch = cardEvent?.message.match(/(\d+)-bit card/);
-  const pinTimingEvent = sessionEvents.find(x => /PIN timing:/i.test(x.message));
-  const pinUserIdMatch = pinTimingEvent?.message.match(/PIN timing:\s+([A-F0-9]{4,8})/i);
-  return {
-    user_id_raw: userIdMatch?.[1] || pinUserIdMatch?.[1],
-    card_bits: cardBitsMatch ? parseInt(cardBitsMatch[1]) : undefined,
-  };
+function extractUserId(se: RawEvent[]): string | undefined {
+  // PIN timing line carries the credential hex ID (e.g. "PIN timing: F7E104 [...]")
+  const pinTiming = se.find(e => /PIN timing:/i.test(e.message));
+  const pinMatch = pinTiming?.message.match(/PIN timing:\s+([A-F0-9]{4,8})\s*\[/i);
+  if (pinMatch) return pinMatch[1];
+  // TXT format: SFM match carries numeric UserId
+  const sfm = se.find(e => e.module === 'SFM' && /match/i.test(e.message));
+  const sfmMatch = sfm?.message.match(/UserId (\d+)/);
+  return sfmMatch?.[1];
+}
+
+function extractCardBits(se: RawEvent[]): number | undefined {
+  const card = se.find(e => e.module === 'wiegand');
+  const m = card?.message.match(/(\d+)-bit card/);
+  return m ? parseInt(m[1]) : undefined;
 }
