@@ -19,7 +19,7 @@ export const logIngestionService = {
     knownDeviceIds: string[]
   ): Promise<IngestionResult> {
     const text = await file.text();
-    const result = parseLogFile(text);
+    const result = parseLogFile(text, file.name);
 
     if (result.deviceIds.length === 0) {
       return {
