@@ -961,7 +961,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     // 1.7 Pilot Starts
     doc.addPage();
     addSectionHeader('1.7 Pilot Starts');
-    doc.text('<span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilot Start Date:</span> <strong>${project.sowMeta?.pilotStartDate || 'TBD'}</strong></p><p class="mt-2"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.pilotStartDeadline || 'TBD'}</strong>', 20, 45);
+    const pilotText = `Pilot Start Date: ${project.sowMeta?.pilotStartDate || 'TBD'}  |  Timeline for Completion: ${project.sowMeta?.pilotStartDeadline || 'TBD'}`;
+    doc.text(doc.splitTextToSize(pilotText, 170), 20, 45);
     doc.setFillColor(248, 250, 252);
     doc.rect(20, 60, 170, 30, 'F');
     doc.setFontSize(8);
@@ -981,7 +982,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     // 1.8 Pilot Conclusion
     doc.addPage();
     addSectionHeader('1.8 Pilot Conclusion');
-    doc.text(`Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders.</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.pilotConclusionDeadline || 'TBD'}</strong>`, 20, 45);
+    doc.text(doc.splitTextToSize(`Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders. Timeline for Completion: ${project.sowMeta?.pilotConclusionDeadline || 'TBD'}`, 170), 20, 45);
     doc.setFillColor(248, 250, 252);
     doc.rect(20, 60, 170, 30, 'F');
     doc.setFontSize(8);
