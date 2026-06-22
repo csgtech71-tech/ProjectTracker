@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Project, GlobalSettings, SowSection } from '../../types';
+import { Project, GlobalSettings, SowSection, SowMeta } from '../../types';
 import { FileText, Save, Printer, Plus, Trash2, Edit3, X, GripVertical, Eye, Download, List, Target, Calendar, Users, Calculator, CheckCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -22,9 +22,17 @@ interface Props {
 export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalSettings, globalSettings }) => {
   // Local state for SOW sections, initialized from project or global defaults
   const [sections, setSections] = useState<SowSection[]>(project.sowSections || globalSettings.globalSowSections || []);
+  const [sowMeta, setSowMeta] = useState<SowMeta>(project.sowMeta || {});
   const [isEditing, setIsEditing] = useState(false);
-  const [isPreview, setIsPreview] = useState(true); // Default to preview mode for a "document" feel
+  const [isPreview, setIsPreview] = useState(true);
+  const [isSowMetaEditing, setIsSowMetaEditing] = useState(false);
   const docRef = useRef<HTMLDivElement>(null);
+
+  const updateMeta = (field: keyof SowMeta, value: string) => {
+    const updated = { ...sowMeta, [field]: value };
+    setSowMeta(updated);
+    onUpdate({ ...project, sowMeta: updated, sowSections: sections });
+  };
 
   // Generate TOC based on original design
   const toc = useMemo(() => {
@@ -55,7 +63,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
 
   // Persist SOW changes to the project state
   const handleSave = () => {
-    onUpdate({ ...project, sowSections: sections });
+    onUpdate({ ...project, sowSections: sections, sowMeta });
     setIsEditing(false);
   };
 
@@ -144,14 +152,16 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             </div>
             <div class="grid grid-cols-2 gap-20 border-t border-slate-100 pt-10">
                <div>
-                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Customer Contact</p>
-                 <p class="text-sm font-black uppercase text-slate-900">${customerLead?.name || 'Primary Stakeholder'}</p>
-                 <p class="text-xs text-slate-500">${customerLead?.email || 'N/A'}</p>
+                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Prepared For</p>
+                 ${project.contacts.filter(c => c.side === 'customer').length > 0
+                   ? project.contacts.filter(c => c.side === 'customer').map(c => `<p class="text-sm font-black uppercase text-slate-900">${c.name}</p><p class="text-xs text-slate-500 mb-1">${c.email || ''}</p>`).join('')
+                   : `<p class="text-sm font-black uppercase text-slate-900">${project.customerName}</p>`}
                </div>
                <div>
-                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">${companyName} Lead</p>
-                 <p class="text-sm font-black uppercase text-slate-900">${internalPM?.name || 'Project Manager'}</p>
-                 <p class="text-xs text-slate-500">${internalPM?.email || 'N/A'}</p>
+                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Created By</p>
+                 ${project.contacts.filter(c => c.side === 'internal').length > 0
+                   ? project.contacts.filter(c => c.side === 'internal').map(c => `<p class="text-sm font-black uppercase text-slate-900">${c.name}</p><p class="text-xs text-slate-500 mb-1">${c.email || ''}</p>`).join('')
+                   : `<p class="text-sm font-black uppercase text-slate-900">${companyName}</p>`}
                </div>
             </div>
           </div>
@@ -182,7 +192,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <div class="text-lg leading-relaxed text-slate-800">
                 <p>MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for ${project.customerName}'s Learning Management System (LMS).</p>
                 <ul class="mt-4 space-y-2 list-none">
-                  <li>a. Safe activation at Durham and Connecticut location(s)</li>
+                  <li>a. Safe activation at project location(s)</li>
                   <li>b. Training of personnel (administration and end users)</li>
                   <li>c. Provide Training collateral</li>
                   <li>d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.</li>
@@ -284,14 +294,15 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <h3 class="text-3xl font-black uppercase tracking-tighter">1.4 Remote Activation</h3>
               </div>
               <div class="text-lg leading-relaxed text-slate-800">
-                <p>Remote activation of safe(s) at Durham and Connecticut location(s) respectively. Once all safes are activated and ready for use and the training is completed the pilot will start. Summary: Currently all safes at Connecticut have been activated. Durham safes still has to be activated. Timeline for completion: EOD 1/7/2026</p>
+                <p>Remote activation of safe(s) at project location(s). Once all safes are activated and ready for use and the training is completed the pilot will start.</p>
+                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.activationDeadline || 'TBD'}</strong></p>
               </div>
               <div class="commitment-box">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
                 <div class="flex justify-between items-center">
                   <div class="flex items-center gap-3">
                     <div class="w-2 h-2 bg-[#d12913] rounded-full"></div>
-                    <span class="text-sm font-bold text-slate-900">Remote Activation of Safes at Durham and Connecticut</span>
+                    <span class="text-sm font-bold text-slate-900">Remote Activation of Safe(s) at Project Location(s)</span>
                   </div>
                   <div class="text-right">
                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Responsibility</p>
@@ -309,7 +320,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <h3 class="text-3xl font-black uppercase tracking-tighter">1.5 Training of personnel</h3>
               </div>
               <div class="text-lg leading-relaxed text-slate-800">
-                <p>Medixsafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable) Timeline for completion: EOD 1/9/2026</p>
+                <p>MedixSafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable).</p>
+                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.trainingDeadline || 'TBD'}</strong></p>
               </div>
               <div class="commitment-box">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
@@ -365,7 +377,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <h3 class="text-3xl font-black uppercase tracking-tighter">1.7 Pilot Starts</h3>
               </div>
               <div class="text-lg leading-relaxed text-slate-800">
-                <p>Start Date: 2/5/2026 Timeline for completion: EOD 2/4/2026</p>
+                <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilot Start Date:</span> <strong>{project.sowMeta?.pilotStartDate || 'TBD'}</strong></p>
+                <p className="mt-2"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.pilotStartDeadline || 'TBD'}</strong></p>
               </div>
               <div class="commitment-box">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
@@ -390,7 +403,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <h3 class="text-3xl font-black uppercase tracking-tighter">1.8 Pilot Conclusion</h3>
               </div>
               <div class="text-lg leading-relaxed text-slate-800">
-                <p>Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders. Timeline for completion: 3/6/2026</p>
+                <p>Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders.</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.pilotConclusionDeadline || 'TBD'}</strong></p>
               </div>
               <div class="commitment-box">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
@@ -578,12 +591,96 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <div class="space-y-12">
                     <div class="border-b-2 border-slate-900 w-full h-24"></div>
                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Authorization</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${project.customerName}</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${customerLead?.name || project.customerName}</p>
+                    <p class="text-xs text-slate-500">${customerLead?.role || ''}</p>
+                    <div class="border-b border-slate-300 w-full mt-8 pt-8"></div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
+                    <p class="text-sm text-slate-300">________________</p>
                  </div>
                  <div class="space-y-12">
                     <div class="border-b-2 border-slate-900 w-full h-24"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Authorization</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${companyName}</p>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Authorization</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${internalPM?.name || companyName}</p>
+                    <p class="text-xs text-slate-500">${internalPM?.role || ''}</p>
+                    <div class="border-b border-slate-300 w-full mt-8 pt-8"></div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
+                    <p class="text-sm text-slate-300">________________</p>
+                 </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- SECTION 5: ACKNOWLEDGEMENT OF COMPLETION -->
+          <div class="sow-print-page bg-white flex flex-col justify-between">
+            <section class="space-y-10">
+              <div class="red-bar">
+                 <h3 class="text-3xl font-black uppercase tracking-tighter">5. Acknowledgement – Completion of SOW</h3>
+              </div>
+
+              <!-- Information block -->
+              <div class="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                <p class="text-lg text-slate-800 leading-relaxed">This document serves as the official acknowledgement that all services, deliverables, and obligations described in this Statement of Work have been completed to the satisfaction of the Customer and MedixSafe.</p>
+                <p class="text-sm text-slate-600">Both parties confirm that:</p>
+                <ul class="list-disc ml-6 space-y-2 text-sm text-slate-700">
+                  <li>All deliverables specified in Section 1 have been fulfilled.</li>
+                  <li>All Customer Responsibilities outlined in Section 2 have been met.</li>
+                  <li>Any scope changes were properly documented and approved per Section 3.</li>
+                  <li>The project has been formally reviewed and closed.</li>
+                </ul>
+              </div>
+
+              <!-- Fillable block: Date of Completion -->
+              <div class="p-6 border-2 border-dashed border-slate-300 rounded-2xl space-y-3">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date of Completion</p>
+                <p class="text-2xl font-black text-slate-900">${project.sowMeta?.completionDate || '_____ / _____ / _________'}</p>
+                <p class="text-xs text-slate-400 italic">To be completed upon final sign-off</p>
+              </div>
+
+              <!-- Information block: what's confirmed -->
+              <div class="space-y-4">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Confirmation of Deliverables</p>
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Remote Activation</p>
+                    <p class="text-sm text-slate-700">All safe(s) at all project locations activated and operational</p>
+                    <p class="text-xs text-slate-400 mt-1">Target: ${project.sowMeta?.activationDeadline || 'TBD'}</p>
+                  </div>
+                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Personnel Training</p>
+                    <p class="text-sm text-slate-700">All applicable staff trained and signed off</p>
+                    <p class="text-xs text-slate-400 mt-1">Target: ${project.sowMeta?.trainingDeadline || 'TBD'}</p>
+                  </div>
+                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Pilot Program</p>
+                    <p class="text-sm text-slate-700">Pilot completed, surveys collected, final recap delivered</p>
+                    <p class="text-xs text-slate-400 mt-1">Target: ${project.sowMeta?.pilotConclusionDeadline || 'TBD'}</p>
+                  </div>
+                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Documentation</p>
+                    <p class="text-sm text-slate-700">Project completion report and lessons learned filed</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Fillable block: Signatures -->
+              <div class="grid grid-cols-2 gap-20 pt-8">
+                 <div class="space-y-8">
+                    <div class="border-b-2 border-slate-900 w-full h-20"></div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Sign-Off</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${customerLead?.name || project.customerName}</p>
+                    <p class="text-xs text-slate-500">${customerLead?.role || ''}</p>
+                    <div class="mt-6 border-b border-slate-300 w-full pt-6"></div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
+                    <p class="text-sm text-slate-300">________________</p>
+                 </div>
+                 <div class="space-y-8">
+                    <div class="border-b-2 border-slate-900 w-full h-20"></div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Sign-Off</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${internalPM?.name || companyName}</p>
+                    <p class="text-xs text-slate-500">${internalPM?.role || ''}</p>
+                    <div class="mt-6 border-b border-slate-300 w-full pt-6"></div>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
+                    <p class="text-sm text-slate-300">________________</p>
                  </div>
               </div>
             </section>
@@ -705,7 +802,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     const purposeText = `MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for ${project.customerName}'s Learning Management System (LMS).`;
     const purposeLines = doc.splitTextToSize(purposeText, 170);
     doc.text(purposeLines, 20, 45);
-    doc.text('a. Safe activation at Durham and Connecticut location(s)', 25, 70);
+    doc.text('a. Safe activation at project location(s)', 25, 70);
     doc.text('b. Training of personnel (administration and end users)', 25, 77);
     doc.text('c. Provide Training collateral', 25, 84);
     doc.text('d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.', 25, 91);
@@ -793,7 +890,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     addSectionHeader('1.4 Remote Activation');
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    const activationText = `Remote activation of safe(s) at Durham and Connecticut location(s) respectively. Once all safes are activated and ready for use and the training is completed the pilot will start. Summary: Currently all safes at Connecticut have been activated. Durham safes still has to be activated. Timeline for completion: EOD 1/7/2026`;
+    const activationText = `Remote activation of safe(s) at project location(s). Once all safes are activated and ready for use and the training is completed the pilot will start.</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.activationDeadline || 'TBD'}</strong>`;
     const activationLines = doc.splitTextToSize(activationText, 170);
     doc.text(activationLines, 20, 45);
     
@@ -805,20 +902,20 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    doc.text('Remote Activation of Safes at Durham and Connecticut', 25, 88);
+    doc.text('Remote Activation of Safe(s) at Project Location(s)', 25, 88);
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
     doc.text('INTERNAL RESPONSIBILITY', 185, 85, { align: 'right' });
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    doc.text('2026-01-07 EOD', 185, 92, { align: 'right' });
+    doc.text(project.sowMeta?.activationDeadline || 'TBD', 185, 92, { align: 'right' });
 
     // 1.5 Training
     doc.addPage();
     addSectionHeader('1.5 Training of personnel');
     doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    const trainingText = `Medixsafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable) Timeline for completion: EOD 1/9/2026`;
+    const trainingText = `MedixSafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable).</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.trainingDeadline || 'TBD'}</strong>`;
     const trainingLines = doc.splitTextToSize(trainingText, 170);
     doc.text(trainingLines, 20, 45);
     
@@ -836,7 +933,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     doc.text('INTERNAL RESPONSIBILITY', 185, 85, { align: 'right' });
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    doc.text('2026-01-09 EOD', 185, 92, { align: 'right' });
+    doc.text(project.sowMeta?.trainingDeadline || 'TBD', 185, 92, { align: 'right' });
 
     // 1.6 Success Criteria
     doc.addPage();
@@ -864,7 +961,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     // 1.7 Pilot Starts
     doc.addPage();
     addSectionHeader('1.7 Pilot Starts');
-    doc.text('Start Date: 2/5/2026 Timeline for completion: EOD 2/4/2026', 20, 45);
+    doc.text('<span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilot Start Date:</span> <strong>${project.sowMeta?.pilotStartDate || 'TBD'}</strong></p><p class="mt-2"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.pilotStartDeadline || 'TBD'}</strong>', 20, 45);
     doc.setFillColor(248, 250, 252);
     doc.rect(20, 60, 170, 30, 'F');
     doc.setFontSize(8);
@@ -879,12 +976,12 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     doc.text('CUSTOMER RESPONSIBILITY', 185, 75, { align: 'right' });
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    doc.text('2026-02-04 EOD', 185, 82, { align: 'right' });
+    doc.text(project.sowMeta?.pilotStartDeadline || 'TBD', 185, 82, { align: 'right' });
 
     // 1.8 Pilot Conclusion
     doc.addPage();
     addSectionHeader('1.8 Pilot Conclusion');
-    doc.text(`Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders. Timeline for completion: 3/6/2026`, 20, 45);
+    doc.text(`Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders.</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.pilotConclusionDeadline || 'TBD'}</strong>`, 20, 45);
     doc.setFillColor(248, 250, 252);
     doc.rect(20, 60, 170, 30, 'F');
     doc.setFontSize(8);
@@ -899,7 +996,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     doc.text('CUSTOMER RESPONSIBILITY', 185, 75, { align: 'right' });
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    doc.text('2026-03-06 EOD', 185, 82, { align: 'right' });
+    doc.text(project.sowMeta?.pilotConclusionDeadline || 'TBD', 185, 82, { align: 'right' });
 
     // Closing
     doc.addPage();
@@ -969,16 +1066,76 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       doc.text('No locations defined in charter.', 20, 45);
     }
 
-    // Authorization
+    // Section 4: Authorization / Contract Acceptance
     doc.addPage();
-    addSectionHeader('Authorization');
-    doc.text(`By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${new Date().toLocaleDateString()}.`, 20, 45);
+    addSectionHeader('4. Statement of Work Contract Acceptance');
+    const effectiveDate = project.sowMeta?.contractAcceptanceDate || new Date().toLocaleDateString();
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${effectiveDate}.`, 20, 45, { maxWidth: 170 });
+    const custAuth = project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead'))) || project.contacts.find(c => c.side === 'customer');
+    const intAuth = project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead'))) || project.contacts.find(c => c.side === 'internal');
     doc.line(20, 100, 90, 100);
-    doc.text('Customer Authorization', 20, 105);
-    doc.text(project.customerName, 20, 112);
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.text('Customer Authorization', 20, 107);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+    doc.text(custAuth?.name || project.customerName, 20, 115);
+    doc.setFontSize(9); doc.text(custAuth?.role || '', 20, 121);
+    doc.line(20, 134, 90, 134);
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.text('Date', 20, 140);
     doc.line(120, 100, 190, 100);
-    doc.text('Internal Authorization', 120, 105);
-    doc.text(companyName, 120, 112);
+    doc.setFont('helvetica', 'bold'); doc.text('MedixSafe Authorization', 120, 107);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+    doc.text(intAuth?.name || companyName, 120, 115);
+    doc.setFontSize(9); doc.text(intAuth?.role || '', 120, 121);
+    doc.line(120, 134, 190, 134);
+    doc.setFont('helvetica', 'bold'); doc.text('Date', 120, 140);
+
+    // Section 5: Acknowledgement of Completion
+    doc.addPage();
+    addSectionHeader('5. Acknowledgement – Completion of SOW');
+    doc.setFontSize(11); doc.setFont('helvetica', 'normal');
+    const ackText = 'This document serves as the official acknowledgement that all services, deliverables, and obligations described in this Statement of Work have been completed to the satisfaction of the Customer and MedixSafe.';
+    doc.text(doc.splitTextToSize(ackText, 170), 20, 45);
+    let ackY = 65;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text('Both parties confirm that:', 20, ackY); ackY += 8;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+    const ackItems = [
+      'All deliverables specified in Section 1 have been fulfilled.',
+      'All Customer Responsibilities outlined in Section 2 have been met.',
+      'Any scope changes were properly documented and approved per Section 3.',
+      'The project has been formally reviewed and closed.',
+    ];
+    ackItems.forEach(item => { doc.text(`• ${item}`, 25, ackY); ackY += 7; });
+    ackY += 6;
+    doc.setFillColor(253, 232, 229); doc.rect(20, ackY, 170, 18, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.text('DATE OF COMPLETION', 24, ackY + 7);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(14);
+    doc.text(project.sowMeta?.completionDate || '_____ / _____ / _________', 24, ackY + 15);
+    ackY += 28;
+    autoTable(doc, {
+      startY: ackY,
+      head: [['Deliverable', 'Status', 'Target Date']],
+      body: [
+        ['Remote Activation', 'Complete', project.sowMeta?.activationDeadline || 'TBD'],
+        ['Personnel Training', 'Complete', project.sowMeta?.trainingDeadline || 'TBD'],
+        ['Pilot Program', 'Complete', project.sowMeta?.pilotConclusionDeadline || 'TBD'],
+        ['Final Documentation', 'Complete', ''],
+      ],
+    });
+    const ackTableEnd = (doc as any).lastAutoTable.finalY + 20;
+    doc.line(20, ackTableEnd, 90, ackTableEnd);
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.text('Customer Sign-Off', 20, ackTableEnd + 6);
+    doc.setFont('helvetica', 'normal'); doc.text(custAuth?.name || project.customerName, 20, ackTableEnd + 13);
+    doc.line(20, ackTableEnd + 26, 90, ackTableEnd + 26);
+    doc.setFont('helvetica', 'bold'); doc.text('Date Signed', 20, ackTableEnd + 32);
+    doc.line(120, ackTableEnd, 190, ackTableEnd);
+    doc.setFont('helvetica', 'bold'); doc.text('MedixSafe Sign-Off', 120, ackTableEnd + 6);
+    doc.setFont('helvetica', 'normal'); doc.text(intAuth?.name || companyName, 120, ackTableEnd + 13);
+    doc.line(120, ackTableEnd + 26, 190, ackTableEnd + 26);
+    doc.setFont('helvetica', 'bold'); doc.text('Date Signed', 120, ackTableEnd + 32);
 
     // Stakeholders
     doc.addPage();
@@ -1040,6 +1197,49 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
         </div>
       </div>
 
+      {/* SOW Dates & Meta Panel */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <button
+          onClick={() => setIsSowMetaEditing(v => !v)}
+          className="w-full flex justify-between items-center px-8 py-5 hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center"><Calendar size={16} className="text-white" /></div>
+            <div className="text-left">
+              <h3 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">SOW Dates & Completion Fields</h3>
+              <p className="text-[10px] text-slate-400 font-bold">Fillable fields — pulled into the printed SOW and Section 5 acknowledgement</p>
+            </div>
+          </div>
+          <Edit3 size={16} className="text-slate-400" />
+        </button>
+        {isSowMetaEditing && (
+          <div className="px-8 pb-8 space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {([
+                { key: 'activationDeadline', label: '1.4 Activation Deadline', placeholder: 'e.g. EOD 1/7/2026' },
+                { key: 'trainingDeadline', label: '1.5 Training Deadline', placeholder: 'e.g. EOD 1/9/2026' },
+                { key: 'pilotStartDate', label: '1.7 Pilot Start Date', placeholder: 'e.g. 2/5/2026' },
+                { key: 'pilotStartDeadline', label: '1.7 Pre-Pilot Deadline', placeholder: 'e.g. EOD 2/4/2026' },
+                { key: 'pilotConclusionDeadline', label: '1.8 Pilot Conclusion', placeholder: 'e.g. 3/5/2026' },
+                { key: 'contractAcceptanceDate', label: 'Sec. 4 Contract Date', placeholder: 'e.g. 1/15/2026' },
+                { key: 'completionDate', label: 'Sec. 5 Date of Completion', placeholder: 'Filled at project close' },
+              ] as {key: keyof SowMeta; label: string; placeholder: string}[]).map(({ key, label, placeholder }) => (
+                <div key={key} className="space-y-1.5">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+                  <input
+                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm outline-none focus:border-brand transition-all"
+                    placeholder={placeholder}
+                    value={sowMeta[key] || ''}
+                    onChange={e => updateMeta(key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-400 italic">Changes save automatically. These values populate the timeline sections and the Section 5 completion form in both the preview and printed SOW.</p>
+          </div>
+        )}
+      </div>
+
       <div ref={docRef} className="space-y-6">
         {isPreview ? (
           <div className="bg-white rounded-[3rem] border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
@@ -1093,7 +1293,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <div className="text-lg leading-relaxed text-slate-700">
                 <p>MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for {project.customerName}'s Learning Management System (LMS).</p>
                 <ul className="mt-4 space-y-2 list-none">
-                  <li>a. Safe activation at Durham and Connecticut location(s)</li>
+                  <li>a. Safe activation at project location(s)</li>
                   <li>b. Training of personnel (administration and end users)</li>
                   <li>c. Provide Training collateral</li>
                   <li>d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.</li>
@@ -1181,18 +1381,19 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                 <h3 className="text-3xl font-black uppercase tracking-tighter">1.4 Remote Activation</h3>
               </div>
               <div className="text-lg leading-relaxed text-slate-700">
-                <p>Remote activation of safe(s) at Durham and Connecticut location(s) respectively. Once all safes are activated and ready for use and the training is completed the pilot will start. Summary: Currently all safes at Connecticut have been activated. Durham safes still has to be activated. Timeline for completion: EOD 1/7/2026</p>
+                <p>Remote activation of safe(s) at project location(s). Once all safes are activated and ready for use and the training is completed the pilot will start.</p>
+                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.activationDeadline || 'TBD'}</strong></p>
               </div>
               <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     <div className="w-2 h-2 bg-[#d12913] rounded-full" />
-                    <span className="text-sm font-bold text-slate-900">Remote Activation of Safes at Durham and Connecticut</span>
+                    <span className="text-sm font-bold text-slate-900">Remote Activation of Safe(s) at Project Location(s)</span>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">2026-01-07 EOD</p>
+                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.activationDeadline || 'TBD'}</p>
                   </div>
                 </div>
               </div>
@@ -1204,7 +1405,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                 <h3 className="text-3xl font-black uppercase tracking-tighter">1.5 Training of personnel</h3>
               </div>
               <div className="text-lg leading-relaxed text-slate-700">
-                <p>Medixsafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable) Timeline for completion: EOD 1/9/2026</p>
+                <p>MedixSafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable).</p>
+                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.trainingDeadline || 'TBD'}</strong></p>
               </div>
               <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
@@ -1215,7 +1417,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">2026-01-09 EOD</p>
+                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.trainingDeadline || 'TBD'}</p>
                   </div>
                 </div>
               </div>
@@ -1256,7 +1458,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                 <h3 className="text-3xl font-black uppercase tracking-tighter">1.7 Pilot Starts</h3>
               </div>
               <div className="text-lg leading-relaxed text-slate-700">
-                <p>Start Date: 2/5/2026 Timeline for completion: EOD 2/4/2026</p>
+                <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilot Start Date:</span> <strong>{project.sowMeta?.pilotStartDate || 'TBD'}</strong></p>
+                <p className="mt-2"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.pilotStartDeadline || 'TBD'}</strong></p>
               </div>
               <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
@@ -1267,7 +1470,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">2026-02-04 EOD</p>
+                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.pilotStartDeadline || 'TBD'}</p>
                   </div>
                 </div>
               </div>
@@ -1279,7 +1482,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                 <h3 className="text-3xl font-black uppercase tracking-tighter">1.8 Pilot Conclusion</h3>
               </div>
               <div className="text-lg leading-relaxed text-slate-700">
-                <p>Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to {project.customerName} Stakeholders. Timeline for completion: 3/6/2026</p>
+                <p>Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to {project.customerName} Stakeholders.</p>
+                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.pilotConclusionDeadline || 'TBD'}</strong></p>
               </div>
               <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
@@ -1290,7 +1494,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">2026-03-06 EOD</p>
+                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.pilotConclusionDeadline || 'TBD'}</p>
                   </div>
                 </div>
               </div>
@@ -1445,23 +1649,122 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             {/* Authorization Preview */}
             <div className="p-20 border-t border-slate-100 bg-white space-y-12">
               <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">Authorization</h3>
+                <h3 className="text-3xl font-black uppercase tracking-tighter">4. Statement of Work Contract Acceptance</h3>
               </div>
-              <p className="text-lg text-slate-700 leading-relaxed">By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of {new Date().toLocaleDateString()}.</p>
-              <div className="grid grid-cols-2 gap-20 pt-20">
-                <div className="space-y-12">
+              <p className="text-lg text-slate-700 leading-relaxed">By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of {project.sowMeta?.contractAcceptanceDate || new Date().toLocaleDateString()}.</p>
+              <div className="grid grid-cols-2 gap-20 pt-8">
+                <div className="space-y-6">
                   <div className="border-b-2 border-slate-200 w-full h-24"></div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Authorization</p>
-                    <p className="text-sm font-black uppercase text-slate-900">{project.customerName}</p>
+                    <p className="text-sm font-black uppercase text-slate-900">
+                      {project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
+                        || project.contacts.find(c => c.side === 'customer')?.name
+                        || project.customerName}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.role
+                        || project.contacts.find(c => c.side === 'customer')?.role || ''}
+                    </p>
                   </div>
+                  <div className="border-b border-slate-200 w-full pt-4"></div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
+                  <p className="text-slate-300 text-sm">________________</p>
                 </div>
-                <div className="space-y-12">
+                <div className="space-y-6">
                   <div className="border-b-2 border-slate-200 w-full h-24"></div>
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Authorization</p>
-                    <p className="text-sm font-black uppercase text-slate-900">{globalSettings.companyName || 'MedixSafe'}</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Authorization</p>
+                    <p className="text-sm font-black uppercase text-slate-900">
+                      {project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
+                        || project.contacts.find(c => c.side === 'internal')?.name
+                        || globalSettings.companyName || 'MedixSafe'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.role
+                        || project.contacts.find(c => c.side === 'internal')?.role || ''}
+                    </p>
                   </div>
+                  <div className="border-b border-slate-200 w-full pt-4"></div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
+                  <p className="text-slate-300 text-sm">________________</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: Acknowledgement of Completion */}
+            <div className="p-20 border-t border-slate-100 bg-white space-y-10">
+              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
+                <h3 className="text-3xl font-black uppercase tracking-tighter">5. Acknowledgement – Completion of SOW</h3>
+              </div>
+
+              {/* Information block */}
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                <p className="text-lg text-slate-800 leading-relaxed">This document serves as the official acknowledgement that all services, deliverables, and obligations described in this Statement of Work have been completed to the satisfaction of both the Customer and MedixSafe.</p>
+                <p className="text-sm text-slate-600">Both parties confirm that:</p>
+                <ul className="list-disc ml-6 space-y-2 text-sm text-slate-700">
+                  <li>All deliverables specified in Section 1 have been fulfilled.</li>
+                  <li>All Customer Responsibilities outlined in Section 2 have been met.</li>
+                  <li>Any scope changes were properly documented and approved per Section 3.</li>
+                  <li>The project has been formally reviewed and closed.</li>
+                </ul>
+              </div>
+
+              {/* Fillable block: Date of Completion */}
+              <div className="p-6 border-2 border-dashed border-brand/30 rounded-2xl space-y-3 bg-brand/5">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date of Completion</p>
+                <p className="text-3xl font-black text-slate-900">{project.sowMeta?.completionDate || '_____ / _____ / _________'}</p>
+                <p className="text-xs text-slate-400 italic">Set this via the SOW Dates panel above — filled upon final sign-off</p>
+              </div>
+
+              {/* Information block: Deliverables confirmation */}
+              <div className="space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Confirmation of Deliverables</p>
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { label: 'Remote Activation', detail: 'All safe(s) activated and operational', target: project.sowMeta?.activationDeadline },
+                    { label: 'Personnel Training', detail: 'All applicable staff trained and signed off', target: project.sowMeta?.trainingDeadline },
+                    { label: 'Pilot Program', detail: 'Pilot completed, surveys collected, recap delivered', target: project.sowMeta?.pilotConclusionDeadline },
+                    { label: 'Documentation', detail: 'Completion report and lessons learned filed', target: undefined },
+                  ].map(item => (
+                    <div key={item.label} className="p-4 bg-white border border-slate-200 rounded-xl space-y-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-brand">{item.label}</p>
+                      <p className="text-sm text-slate-700">{item.detail}</p>
+                      {item.target && <p className="text-xs text-slate-400 mt-1">Target: {item.target}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fillable block: Signatures */}
+              <div className="grid grid-cols-2 gap-20 pt-8">
+                <div className="space-y-6">
+                  <div className="border-b-2 border-slate-200 w-full h-20"></div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Sign-Off</p>
+                    <p className="text-sm font-black uppercase text-slate-900">
+                      {project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
+                        || project.contacts.find(c => c.side === 'customer')?.name
+                        || project.customerName}
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-200 w-full pt-4"></div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
+                  <p className="text-slate-300 text-sm">________________</p>
+                </div>
+                <div className="space-y-6">
+                  <div className="border-b-2 border-slate-200 w-full h-20"></div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Sign-Off</p>
+                    <p className="text-sm font-black uppercase text-slate-900">
+                      {project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
+                        || project.contacts.find(c => c.side === 'internal')?.name
+                        || globalSettings.companyName || 'MedixSafe'}
+                    </p>
+                  </div>
+                  <div className="border-b border-slate-200 w-full pt-4"></div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
+                  <p className="text-slate-300 text-sm">________________</p>
                 </div>
               </div>
             </div>
