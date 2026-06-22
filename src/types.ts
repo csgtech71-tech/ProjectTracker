@@ -8,8 +8,7 @@ export type Tab =
   | 'costing'
   | 'readiness'
   | 'closure'
-  | 'settings'
-  | 'analyzer';
+  | 'settings';
 
 export type Sentiment = 'happy' | 'disappointed' | 'sad' | 'angry';
 export type UserRole = 'admin' | 'user';
@@ -67,7 +66,7 @@ export interface AccessEvent {
   project_id?: string;
   occurred_at: string; // ISO
   auth_type: HardwareAuthType;
-  result: 'success' | 'failure' | 'incomplete' | 'unknown';
+  result: 'success' | 'failure' | 'unknown';
   failure_reason?: string;
   user_id_raw?: string;
   card_bits?: number;
@@ -235,6 +234,16 @@ export interface SowSection {
   timelineItems?: TimelineItem[];
 }
 
+export interface SowMeta {
+  activationDeadline?: string;       // 1.4 Timeline for completion
+  trainingDeadline?: string;         // 1.5 Timeline for completion
+  pilotStartDate?: string;           // 1.7 Start Date
+  pilotStartDeadline?: string;       // 1.7 Timeline for completion
+  pilotConclusionDeadline?: string;  // 1.8 Timeline for completion
+  completionDate?: string;           // Section 5 Date of Completion (fillable)
+  contractAcceptanceDate?: string;   // Section 4 date
+}
+
 export interface GlobalSettings {
   sidebarIconBase64?: string;
   companyLogoBase64?: string;
@@ -282,6 +291,7 @@ export interface Project {
   hardwareNodes?: HardwareNode[];
   aiAnalysisSummary?: string;
   readinessCategories?: ReadinessCategory[];
+  sowMeta?: SowMeta;
   // DB timestamps
   created_at?: string;
   updated_at?: string;
