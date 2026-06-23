@@ -19,30 +19,12 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // Check existing session immediately on mount
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return;
-      if (!session) {
-        setLoading(false);
-        return;
-      }
-      const appUser = await fetchAppUser();
-      if (!mounted) return;
-      if (appUser) {
-        setUser(appUser);
-      } else {
-        setAuthError('Account not configured. Contact your administrator.');
-        await supabase.auth.signOut();
-      }
-      setLoading(false);
-    });
-
-    // Subscribe to ongoing auth changes
+    // onAuthStateChange is the single source of truth.
+    // INITIAL_SESSION fires on mount with the existing session (or null),
+    // so we no longer need a separate getSession() call.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-
-        if (event === 'INITIAL_SESSION') return;
 
         if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
@@ -51,19 +33,18 @@ export function useAuth() {
           return;
         }
 
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-          const appUser = await fetchAppUser();
-          if (!mounted) return;
-          if (appUser) {
-            setAuthError(null);
-            setUser(appUser);
-          } else {
-            setAuthError('Account not configured. Contact your administrator.');
-            await supabase.auth.signOut();
-            setUser(null);
-          }
-          setLoading(false);
+        // Handles INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED
+        const appUser = await fetchAppUser();
+        if (!mounted) return;
+        if (appUser) {
+          setAuthError(null);
+          setUser(appUser);
+        } else {
+          setAuthError('Account not configured. Contact your administrator.');
+          await supabase.auth.signOut();
+          setUser(null);
         }
+        setLoading(false);
       }
     );
 
