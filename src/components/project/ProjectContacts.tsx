@@ -1,7 +1,6 @@
-
 import React, { useState, useRef } from 'react';
 import { Project, Contact, AppUser } from '../../types';
-import { Plus, User, Mail, Phone, MapPin, Building, Info, Trash2, Edit3, X, Users, Upload, Download, FileSpreadsheet, Check } from 'lucide-react';
+import { Plus, Mail, Phone, MapPin, Info, Trash2, Edit3, X, Users, Upload, Download, Check, ChevronDown } from 'lucide-react';
 
 interface Props {
   project: Project;
@@ -13,6 +12,7 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [showTeamPicker, setShowTeamPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Partial<Contact>>({
@@ -25,28 +25,6 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
     address: '',
     notes: ''
   });
-
-  // Sync internal contacts from app users — add any system user not already present
-  const handleSyncInternalFromUsers = () => {
-    const existingEmails = new Set(
-      project.contacts.filter(c => c.side === 'internal').map(c => c.email?.toLowerCase()).filter(Boolean)
-    );
-    const toAdd: Contact[] = appUsers
-      .filter(u => !existingEmails.has(u.email?.toLowerCase()))
-      .map(u => ({
-        id: crypto.randomUUID(),
-        side: 'internal' as const,
-        name: u.username,
-        role: u.role === 'admin' ? 'Admin' : 'Team Member',
-        email: u.email || '',
-        phone: u.phone || '',
-        location: '',
-        address: '',
-        notes: '',
-      }));
-    if (toAdd.length === 0) return;
-    onUpdate({ ...project, contacts: [...project.contacts, ...toAdd] });
-  };
 
   const handleOpenAdd = (side: 'customer' | 'internal') => {
     setEditingId(null);
@@ -79,6 +57,27 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
     }
   };
 
+  // Add a single app user as an internal contact — safe one-at-a-time addition
+  const handleAddTeamMember = (u: AppUser) => {
+    const alreadyExists = project.contacts.some(
+      c => c.side === 'internal' && c.email?.toLowerCase() === u.email?.toLowerCase()
+    );
+    if (alreadyExists) return;
+    const newContact: Contact = {
+      id: crypto.randomUUID(),
+      side: 'internal',
+      name: u.username,
+      role: u.role === 'admin' ? 'Admin' : 'Team Member',
+      email: u.email || '',
+      phone: u.phone || '',
+      location: '',
+      address: '',
+      notes: '',
+    };
+    onUpdate({ ...project, contacts: [...project.contacts, newContact] });
+    setShowTeamPicker(false);
+  };
+
   const handleDownloadTemplate = () => {
     const headers = "Name,Role,Email,Phone,Side(customer/internal),Location,Address,Notes";
     const example = "John Smith,Technical Lead,j.smith@client.com,555-0199,customer,Main Hub,123 West Dr,Primary onsite POC";
@@ -95,14 +94,12 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
       try {
         const lines = content.split('\n').filter(l => l.trim().length > 0);
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        
         const importedContacts: Contact[] = lines.slice(1).map(line => {
           const values = line.split(',').map(v => v.trim());
           const c: any = { id: crypto.randomUUID() };
@@ -119,7 +116,6 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
           });
           return c as Contact;
         }).filter(c => c.name);
-
         if (importedContacts.length > 0) {
           onUpdate({ ...project, contacts: [...project.contacts, ...importedContacts] });
           setImportStatus('success');
@@ -135,6 +131,11 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Users not yet added as internal contacts
+  const unaddedTeamMembers = appUsers.filter(u =>
+    !project.contacts.some(c => c.side === 'internal' && c.email?.toLowerCase() === u.email?.toLowerCase())
+  );
+
   const renderContactList = (side: 'customer' | 'internal', title: string) => {
     const contacts = project.contacts.filter(c => c.side === side);
     return (
@@ -142,10 +143,34 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
         <div className="flex justify-between items-center px-4 bg-black/5 py-3 rounded-xl border border-black/5">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{title}</h3>
           <div className="flex items-center gap-3">
-            {side === 'internal' && appUsers.length > 0 && (
-              <button onClick={handleSyncInternalFromUsers} className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">
-                <Users size={14} /> Sync Users
-              </button>
+            {side === 'internal' && unaddedTeamMembers.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowTeamPicker(v => !v)}
+                  className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+                >
+                  <Users size={13} /> Add from Team <ChevronDown size={11} />
+                </button>
+                {showTeamPicker && (
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[180px] overflow-hidden">
+                    {unaddedTeamMembers.map(u => (
+                      <button
+                        key={u.id}
+                        onClick={() => handleAddTeamMember(u)}
+                        className="w-full text-left px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-3 transition-colors"
+                      >
+                        <div className="w-7 h-7 bg-brand/10 rounded-lg flex items-center justify-center text-brand font-black text-sm shrink-0">
+                          {u.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-800 text-[11px]">{u.username}</p>
+                          <p className="text-[9px] text-slate-400 uppercase">{u.role}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             <button onClick={() => handleOpenAdd(side)} className="flex items-center gap-2 text-[10px] font-black text-brand uppercase tracking-widest hover:text-brand-dark transition-colors">
               <Plus size={14} /> Add Stakeholder
@@ -206,32 +231,39 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
           <p className="text-sm text-slate-500 font-medium italic">Project command and internal operational team mapping.</p>
         </div>
         <div className="flex gap-3 no-print">
-          <button 
+          <button
             onClick={handleDownloadTemplate}
             className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all"
           >
             <Download size={14} /> Template
           </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleImport} 
-            className="hidden" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden"
             accept=".csv"
           />
-          <button 
+          <button
             onClick={() => fileInputRef.current?.click()}
             className={`flex items-center gap-2 px-6 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-xl ${importStatus === 'success' ? 'bg-emerald-500 text-white' : importStatus === 'error' ? 'bg-red-500 text-white' : 'bg-black text-white hover:bg-brand shadow-black/20'}`}
           >
-            {importStatus === 'success' ? <Check size={14} /> : <Upload size={14} />} 
+            {importStatus === 'success' ? <Check size={14} /> : <Upload size={14} />}
             {importStatus === 'success' ? 'Imported' : importStatus === 'error' ? 'Import Failed' : 'Batch Import'}
           </button>
         </div>
       </div>
+
+      {/* Click outside handler for team picker */}
+      {showTeamPicker && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowTeamPicker(false)} />
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         {renderContactList('customer', `Client: ${project.customerName}`)}
         {renderContactList('internal', 'Internal Operational Team')}
       </div>
+
       {showModal && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-brand/20">
@@ -245,18 +277,16 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
                 <input className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold" placeholder="Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                 <input className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-medium text-sm" placeholder="Role" value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value })} />
               </div>
-              
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contact Details</label>
                 <input className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-medium text-sm" placeholder="Email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
                 <input className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-medium text-sm" placeholder="Phone" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
               </div>
-
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Location & Assignment</label>
-                <select 
-                  className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-[11px] uppercase mb-2" 
-                  value={formData.locationId || ''} 
+                <select
+                  className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-[11px] uppercase mb-2"
+                  value={formData.locationId || ''}
                   onChange={e => {
                     const loc = project.locations.find(l => l.id === e.target.value);
                     setFormData({ ...formData, locationId: e.target.value, location: loc?.name || '' });
@@ -270,7 +300,6 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers =
                 <input className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-medium text-sm" placeholder="Custom Location / Dept" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} />
                 <input className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-medium text-sm" placeholder="Address" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
               </div>
-
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Additional Info</label>
                 <select className="w-full px-5 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-black text-[11px] uppercase" value={formData.side} onChange={e => setFormData({ ...formData, side: e.target.value as any })}>
