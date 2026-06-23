@@ -146,7 +146,11 @@ export default function App() {
     };
     setIsCreating(true);
     try {
-      const created = await projectService.create(project);
+      // Race against a 15s timeout so we never spin forever
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Request timed out. Check your Supabase connection and RLS policies on the projects table.')), 15000)
+      );
+      const created = await Promise.race([projectService.create(project), timeoutPromise]);
       setProjects((prev) => [created, ...prev]);
       setActiveProjectId(created.id);
       setActiveTab('summary');
@@ -162,6 +166,7 @@ export default function App() {
         sowCost: 7500,
       });
     } catch (e) {
+      console.error('Project create error:', e);
       setCreateError(e instanceof Error ? e.message : 'Failed to create project. Check your Supabase connection.');
     } finally {
       setIsCreating(false);
