@@ -33,7 +33,7 @@ interface Props {
   onUpdate: (updated: Project) => void;
 }
 
-const DEFAULT_READINESS: ReadinessCategory[] = [
+export const DEFAULT_READINESS: ReadinessCategory[] = [
   {
     id: 'pre-install',
     name: 'Pre-Install Checks',
@@ -80,14 +80,20 @@ const DEFAULT_READINESS: ReadinessCategory[] = [
 ];
 
 export const ProjectReadiness: React.FC<Props> = ({ project, onUpdate }) => {
-  const [categories, setCategories] = useState<ReadinessCategory[]>(project.readinessCategories || DEFAULT_READINESS);
+  const [categories, setCategories] = useState<ReadinessCategory[]>(
+    project.readinessCategories && project.readinessCategories.length > 0
+      ? project.readinessCategories
+      : DEFAULT_READINESS
+  );
   const [isEditMode, setIsEditMode] = useState(false);
 
   useEffect(() => {
-    if (project.readinessCategories) {
-      setCategories(project.readinessCategories);
-    }
-  }, [project.id, project.readinessCategories]);
+    setCategories(
+      project.readinessCategories && project.readinessCategories.length > 0
+        ? project.readinessCategories
+        : DEFAULT_READINESS
+    );
+  }, [project.id]);
 
   // Conditional Logic: Filter categories based on deploymentType
   // Pre-install and Networking are always shown as prerequisites
