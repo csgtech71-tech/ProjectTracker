@@ -89,8 +89,7 @@ export default function App() {
   }, [user]);
 
   const handleUpdateProject = useCallback(async (updated: Project) => {
-    console.log(`[handleUpdateProject] title="${updated.title}" contacts(${updated.contacts.length}):`, updated.contacts.map(c => ({name:c.name,side:c.side})));
-    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     setIsSaving(true);
     try {
       await projectService.update(updated);
