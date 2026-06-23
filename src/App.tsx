@@ -13,7 +13,7 @@ import { ProjectContacts } from './components/project/ProjectContacts';
 import { ProjectSOW } from './components/project/ProjectSOW';
 import { ProjectDashboard } from './components/project/ProjectDashboard';
 import { ProjectJobCosting } from './components/project/ProjectJobCosting';
-import { ProjectReadiness } from './components/project/ProjectReadiness';
+import { ProjectReadiness, DEFAULT_READINESS } from './components/project/ProjectReadiness';
 import { AdminSettings } from './components/admin/AdminSettings';
 import { LogAnalyzer } from './components/tracking/LogAnalyzer';
 import {
@@ -144,6 +144,11 @@ setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           description: 'Project start date.',
         },
       ],
+      readinessCategories: (globalSettings.defaultReadinessCategories ?? DEFAULT_READINESS).map(cat => ({
+        ...cat,
+        id: crypto.randomUUID(),
+        items: cat.items.map(item => ({ ...item, id: crypto.randomUUID(), isComplete: false, value: item.type !== 'checkbox' ? (item.value ?? '') : undefined }))
+      })),
       contacts: appUsers.map(u => ({
         id: crypto.randomUUID(),
         side: 'internal' as const,
