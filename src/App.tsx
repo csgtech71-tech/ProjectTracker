@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Project, Tab, GlobalSettings, DeploymentType } from './types';
+import { Project, Tab, GlobalSettings, DeploymentType, AppUser } from './types';
 import { useAuth } from './hooks/useAuth';
 import { projectService, settingsService } from './services/projectService';
 import { authService } from './services/authService';
@@ -56,6 +56,7 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
 
   const [newProject, setNewProject] = useState({
     title: '',
@@ -72,8 +73,9 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     setIsDataLoading(true);
-    Promise.all([projectService.list(), settingsService.load()])
-      .then(([projs, settings]) => {
+    Promise.all([projectService.list(), settingsService.load(), authService.listAppUsers()])
+      .then(([projs, settings, users]) => {
+        setAppUsers(users);
         setProjects(projs);
         if (projs.length > 0) setActiveProjectId(projs[0].id);
         setGlobalSettings(settings);
@@ -404,7 +406,7 @@ export default function App() {
                   : <NoProjectSelected />
                 )}
                 {activeTab === 'stakeholders' && (activeProject
-                  ? <ProjectContacts project={activeProject} onUpdate={handleUpdateProject} />
+                  ? <ProjectContacts project={activeProject} onUpdate={handleUpdateProject} appUsers={appUsers} />
                   : <NoProjectSelected />
                 )}
                 {activeTab === 'timeline' && (activeProject
