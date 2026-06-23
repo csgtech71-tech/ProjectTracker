@@ -32,7 +32,10 @@ function rowToProject(row: Record<string, unknown>): Project {
     ourSuccessCriteria: (data.ourSuccessCriteria as Project['ourSuccessCriteria']) ?? [],
     accomplishments: (data.accomplishments as string[]) ?? [],
     milestones: (data.milestones as Project['milestones']) ?? [],
-    contacts: (data.contacts as Project['contacts']) ?? [],
+    contacts: [
+      ...((data.internalContacts as Project['contacts']) ?? (data.contacts as Project['contacts'] ?? []).filter((c: any) => c.side === 'internal')),
+      ...((data.customerContacts as Project['contacts']) ?? (data.contacts as Project['contacts'] ?? []).filter((c: any) => c.side === 'customer')),
+    ],
     surveyQuestions: (data.surveyQuestions as Project['surveyQuestions']) ?? [],
     costingItems: (data.costingItems as Project['costingItems']) ?? [],
     sowTOC: data.sowTOC as string | undefined,
@@ -82,7 +85,10 @@ function projectToRow(p: Project) {
     updated_at: new Date().toISOString(),
     data: {
       locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
-      accomplishments, milestones, contacts, surveyQuestions,
+      accomplishments, milestones,
+      internalContacts: contacts.filter(c => c.side === 'internal'),
+      customerContacts: contacts.filter(c => c.side === 'customer'),
+      surveyQuestions,
       costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
       customerSignature, ourSignature, sowMeta,
     },
@@ -128,9 +134,7 @@ export const projectService = {
 
   async update(p: Project): Promise<void> {
     const row = projectToRow(p);
-    console.log(`[update] project="${p.title}" contacts(${p.contacts.length}):`, JSON.stringify(p.contacts.map(c => ({name:c.name, side:c.side}))));
-    console.trace('[update] called from');
-    const { error } = await supabase
+const { error } = await supabase
       .from('projects')
       .update(row)
       .eq('id', p.id);
