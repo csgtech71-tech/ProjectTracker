@@ -39,6 +39,7 @@ function rowToProject(row: Record<string, unknown>): Project {
     sowSections: (data.sowSections as Project['sowSections']) ?? [],
     hardwareNodes: (data.hardwareNodes as Project['hardwareNodes']) ?? [],
     readinessCategories: (data.readinessCategories as Project['readinessCategories']) ?? [],
+    sowMeta: data.sowMeta as Project['sowMeta'] | undefined,
     customerSignature: data.customerSignature as string | undefined,
     ourSignature: data.ourSignature as string | undefined,
   };
@@ -55,7 +56,7 @@ function projectToRow(p: Project) {
     locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
     accomplishments, milestones, contacts, surveyQuestions,
     costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-    customerSignature, ourSignature,
+    customerSignature, ourSignature, sowMeta,
     ...rest
   } = p;
 
@@ -83,7 +84,7 @@ function projectToRow(p: Project) {
       locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
       accomplishments, milestones, contacts, surveyQuestions,
       costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-      customerSignature, ourSignature,
+      customerSignature, ourSignature, sowMeta,
     },
   };
 }
@@ -113,6 +114,19 @@ export const projectService = {
 
   async create(p: Project): Promise<Project> {
     const row = projectToRow(p);
+    // Log any fields not handled by projectToRow (they were in ...rest and are dropped)
+    const { id: _id, title: _t, customerName: _cn, projectOverview: _po, deploymentType: _dt,
+      startDate: _sd, endDate: _ed, revision: _r, isClosed: _ic, isArchived: _ia, isExtended: _ie,
+      extensionReason: _er, extendedEndDate: _eed, customerSentiment: _cs, sowCost: _sc,
+      costingCurrency: _cc, logoBase64: _lb, aiAnalysisSummary: _as,
+      locations: _loc, revisions: _rev, customerSuccessCriteria: _csc, ourSuccessCriteria: _osc,
+      accomplishments: _acc, milestones: _mil, contacts: _con, surveyQuestions: _sq,
+      costingItems: _ci, sowTOC: _st, sowSections: _ss, hardwareNodes: _hn,
+      readinessCategories: _rc, customerSignature: _csig, ourSignature: _os, sowMeta: _sm,
+      created_at: _cat, updated_at: _uat, ...unknownFields } = p;
+    if (Object.keys(unknownFields).length > 0) {
+      console.warn('projectToRow: unhandled fields dropped:', Object.keys(unknownFields));
+    }
     const { data, error } = await supabase
       .from('projects')
       .insert({ ...row, created_at: new Date().toISOString() })
