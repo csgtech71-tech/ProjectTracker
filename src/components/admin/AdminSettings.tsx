@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { GlobalSettings, AppUser, UserRole } from '../../types';
 import { authService } from '../../services/authService';
 import { supabase } from '../../services/supabaseClient';
@@ -46,6 +46,7 @@ export const AdminSettings: React.FC<Props> = ({
   const [local, setLocal] = useState<GlobalSettings>({ ...settings });
   const [isSaving, setIsSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -56,7 +57,26 @@ export const AdminSettings: React.FC<Props> = ({
   const [modalSaving, setModalSaving] = useState(false);
   const [modalError, setModalError] = useState('');
 
-  useEffect(() => { setLocal({ ...settings }); }, [settings]);
+  // Sync local state when parent settings change (e.g. on first load)
+  // but only if we're not in the middle of a save to avoid resetting edits
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    if (!isSaving) {
+      setLocal({ ...settings });
+    }
+    settingsRef.current = settings;
+  }, [settings]);
+
+  // Load users exactly once on mount
+  useEffect(() => {
+    if (!isAdmin) return;
+    setLoadingUsers(true);
+    setUserError('');
+    authService.listAppUsers()
+      .then(setAppUsers)
+      .catch((e) => setUserError(e.message || 'Failed to load users.'))
+      .finally(() => setLoadingUsers(false));
+  }, []); // intentionally empty — run once
 
   const loadUsers = () => {
     if (!isAdmin) return;
@@ -68,13 +88,20 @@ export const AdminSettings: React.FC<Props> = ({
       .finally(() => setLoadingUsers(false));
   };
 
-  useEffect(() => { loadUsers(); }, [isAdmin]);
-
   const handleSaveSettings = async () => {
+    if (isSaving) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setIsSaving(true);
-    await onUpdateSettings(local);
-    setSaveOk(true);
-    setTimeout(() => { setIsSaving(false); setSaveOk(false); }, 1500);
+    setSaveOk(false);
+    try {
+      await onUpdateSettings(local);
+      setSaveOk(true);
+    } catch (e) {
+      console.error('Settings save failed:', e);
+    } finally {
+      setIsSaving(false);
+      saveTimerRef.current = setTimeout(() => setSaveOk(false), 1500);
+    }
   };
 
   const handleFileUpload = (
@@ -180,14 +207,12 @@ export const AdminSettings: React.FC<Props> = ({
     if (!modal.username.trim()) { setModalError('Username is required.'); return; }
     setModalSaving(true);
     try {
-      // Always update profile fields
       await authService.updateAppUser(modal.userId, {
         username: modal.username.trim(),
         role: modal.role,
         phone: modal.phone.trim() || undefined,
       });
 
-      // Email and password can only be changed for the current user via supabase.auth.updateUser
       if (modal.isSelf && (modal.email.trim() || modal.password.trim())) {
         const authUpdates: { email?: string; password?: string } = {};
         if (modal.email.trim()) authUpdates.email = modal.email.trim();
@@ -418,7 +443,6 @@ export const AdminSettings: React.FC<Props> = ({
                 <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-bold">{modalError}</div>
               )}
 
-              {/* Username */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Username</label>
                 <input
@@ -429,7 +453,6 @@ export const AdminSettings: React.FC<Props> = ({
                 />
               </div>
 
-              {/* Email — all modes */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</label>
                 {modal.mode === 'edit' && !modal.isSelf ? (
@@ -450,7 +473,6 @@ export const AdminSettings: React.FC<Props> = ({
                 )}
               </div>
 
-              {/* Password — add mode always, edit mode only for self */}
               {(modal.mode === 'add' || (modal.mode === 'edit' && modal.isSelf)) && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -466,7 +488,6 @@ export const AdminSettings: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Password note for editing other users */}
               {modal.mode === 'edit' && !modal.isSelf && (
                 <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
                   <Info size={14} className="text-amber-500 shrink-0 mt-0.5" />
@@ -476,7 +497,6 @@ export const AdminSettings: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Phone */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone (optional)</label>
                 <input
@@ -488,7 +508,6 @@ export const AdminSettings: React.FC<Props> = ({
                 />
               </div>
 
-              {/* Role */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Role</label>
                 <div className="grid grid-cols-2 gap-3">
