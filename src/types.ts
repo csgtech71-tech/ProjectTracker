@@ -255,6 +255,7 @@ export interface GlobalSettings {
   supportEmail?: string;
   salesEmail?: string;
   globalSowSections?: SowSection[];
+  defaultReadinessCategories?: ReadinessCategory[];
 }
 
 export interface Project {
