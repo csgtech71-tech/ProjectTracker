@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Project, GlobalSettings, SowSection, SowMeta } from '../../types';
-import { FileText, Save, Printer, Plus, Trash2, Edit3, X, GripVertical, Eye, Download, List, Target, Calendar, Users, Calculator, CheckCircle } from 'lucide-react';
+import { Project, GlobalSettings, SowSection } from '../../types';
+import { FileText, Save, Printer, Plus, Trash2, Edit3, X, GripVertical, Eye, Download, List, Target, Calendar, Users, Calculator, CheckCircle, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -19,20 +19,143 @@ interface Props {
  * ProjectSOW Component
  * Manages the Statement of Work document sections and printing capabilities.
  */
+
+// ─── Default template sections — all editable ─────────────────────────────────
+// These load on first open. Titles and content are fully editable in the app.
+// "Pilot" language can be changed to "Project" or anything else per engagement.
+const DEFAULT_SOW_SECTIONS = (customerName: string): SowSection[] => [
+  {
+    id: 'sow-1-1',
+    title: '1.1 Activity Description',
+    content: `MedixSafe will lead the remote activation, configuration and training for the customer. In addition, the MedixSafe team will be responsible for providing training materials for ${customerName}'s LMS.`,
+  },
+  {
+    id: 'sow-1-2',
+    title: '1.2 Service Exclusions',
+    content: `The following services are excluded from this SOW:
+
+- Any custom development / features / implementation`,
+  },
+  {
+    id: 'sow-1-3',
+    title: '1.3 Professional Services',
+    content: `The Program Manager from the MedixSafe team is responsible for initiation, planning and controlling the services delivered, as well as rolling out and handing over the solution(s). These services may include the following activities:`,
+  },
+  {
+    id: 'sow-planning',
+    title: 'Planning',
+    content: `- Collaborating to ensure a comprehensive understanding of business requirements and success criteria
+- Defining the project scope and meticulously crafting a project plan or schedule to align with agreed-upon deadlines and deliverables
+- Documenting and securing approval for requirement specifications to ensure clarity and alignment
+- Identifying and establishing key project milestones for tracking progress
+- Strategically planning and allocating resources to ensure timely achievement of project deliverables
+- Confirming the availability of necessary resource capacity as outlined in the project plan to support successful outcomes`,
+  },
+  {
+    id: 'sow-executing',
+    title: 'Executing',
+    content: `- Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project
+- Execute plan with internal MedixSafe resources during delivery of items as specified in Section 1.1 Activity Description
+- Providing regular progress updates as needed and working with the Customer team to remove any dependencies
+- Provide any project plan updates`,
+  },
+  {
+    id: 'sow-monitoring',
+    title: 'Monitoring and Controlling',
+    content: `- Overseeing day-to-day operations to ensure tasks are executed efficiently and deliverables are achieved on schedule.
+- Maintaining comprehensive issue logs to track project challenges and resolutions.
+- Engaging in escalation processes with stakeholders as necessary to facilitate timely decision-making.
+- Collaborating effectively with MedixSafe project team members and leveraging internal resources to enhance project outcomes.
+- Proactively managing changes in project scope through Integrated Change Control procedures to align with project goals.
+- Ensuring that constraints and scope are effectively addressed to meet the established project objectives.
+- Continuously monitoring, recording, and evaluating project deliverables against the project plan to guarantee success.`,
+  },
+  {
+    id: 'sow-1-4',
+    title: '1.4 Remote Activation',
+    content: `Remote activation of safe(s) at project location(s). Once all safes are activated and ready for use and the training is completed the project will start.`,
+  },
+  {
+    id: 'sow-1-5',
+    title: '1.5 Training of Personnel',
+    content: `MedixSafe has been training personnel on a per safe activation basis. Part of the kick-off prior to project launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable).`,
+  },
+  {
+    id: 'sow-1-6',
+    title: '1.6 Success Criteria (Customer)',
+    content: `## 1. Security & Compliance
+Safe maintains secure, locked storage with no unauthorized access or tampering events. Access controls (keypad, badge, biometric, code) function consistently. Audit logs or access attempt records are accessible and easy to read. Records meet DEA and state storage requirements. Remote accessibility and oversight is available.
+
+## 2. Reliability & System Stability
+The safe operates without mechanical or electronic failures that inhibit access. Locking mechanisms, alarms, and backup features work as intended throughout the project.
+
+## 3. Workflow Integration & User Experience
+Safe supports timely access with minimal workflow disruption. End-users report that the device is intuitive, easy to operate, and does not add burden to manual inventory tasks.
+
+## 4. Operational Efficiency
+Storage layout and capacity align with workflow needs. The safe supports existing manual inventory and daily processes without adding additional time.
+
+## 5. Cost-Effectiveness & Scalability
+Purchase, installation, and maintenance costs meet expectations. The device shows potential for broader deployment with minimal environmental or process changes.`,
+  },
+  {
+    id: 'sow-1-7',
+    title: '1.7 Project Start',
+    content: `All pre-requisites (activation, training) have been completed and confirmed. The project formally begins. Both parties have reviewed and signed this Statement of Work.`,
+  },
+  {
+    id: 'sow-1-8',
+    title: '1.8 Project Conclusion',
+    content: `Outgoing survey to stakeholders. Final meeting to recap the project, survey results, etc. Meeting notes and recap to be filed and provided to ${customerName} stakeholders.`,
+  },
+  {
+    id: 'sow-closing',
+    title: 'Closing and Documentation',
+    content: `- Final project completion report
+- Project plan updates
+- Project reviews and lessons learned`,
+  },
+  {
+    id: 'sow-communication',
+    title: 'Communication Management',
+    content: `All project communications will be managed through the designated project manager. Status updates will be provided on a schedule agreed upon during kickoff. Escalation paths are defined in the project plan.`,
+  },
+  {
+    id: 'sow-2-0',
+    title: '2.0 Customer Responsibilities',
+    content: `The Customer agrees to:
+
+- Provide timely access to facilities, systems, and personnel required for safe activation and training
+- Designate a primary point of contact for the duration of this SOW
+- Ensure all personnel complete required training sessions within the agreed timeline
+- Provide prompt feedback and approvals to avoid project delays
+- Notify MedixSafe immediately of any issues affecting project delivery`,
+  },
+  {
+    id: 'sow-3-0',
+    title: '3.0 Risk Management',
+    content: `MedixSafe will proactively identify, assess, and mitigate project risks throughout the engagement. Identified risks will be documented in the project risk register and reviewed regularly with the Customer.`,
+  },
+  {
+    id: 'sow-3-1',
+    title: '3.1 Scope Change Management',
+    content: `Any changes to the agreed scope of this SOW must be submitted in writing and approved by both parties before work begins. Scope changes may affect timeline and cost. MedixSafe will provide a written impact assessment for any requested change.`,
+  },
+];
+
 export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalSettings, globalSettings }) => {
   // Local state for SOW sections, initialized from project or global defaults
-  const [sections, setSections] = useState<SowSection[]>(project.sowSections || globalSettings.globalSowSections || []);
-  const [sowMeta, setSowMeta] = useState<SowMeta>(project.sowMeta || {});
+  // Load saved sections, or fall back to global defaults, or generate from template
+  const [sections, setSections] = useState<SowSection[]>(
+    project.sowSections?.length
+      ? project.sowSections
+      : globalSettings.globalSowSections?.length
+      ? globalSettings.globalSowSections
+      : DEFAULT_SOW_SECTIONS(project.customerName)
+  );
   const [isEditing, setIsEditing] = useState(false);
-  const [isPreview, setIsPreview] = useState(true);
-  const [isSowMetaEditing, setIsSowMetaEditing] = useState(false);
+  const [isPreview, setIsPreview] = useState(true); // Default to preview mode for a "document" feel
   const docRef = useRef<HTMLDivElement>(null);
-
-  const updateMeta = (field: keyof SowMeta, value: string) => {
-    const updated = { ...sowMeta, [field]: value };
-    setSowMeta(updated);
-    onUpdate({ ...project, sowMeta: updated, sowSections: sections });
-  };
 
   // Generate TOC based on original design
   const toc = useMemo(() => {
@@ -63,7 +186,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
 
   // Persist SOW changes to the project state
   const handleSave = () => {
-    onUpdate({ ...project, sowSections: sections, sowMeta });
+    onUpdate({ ...project, sowSections: sections });
     setIsEditing(false);
   };
 
@@ -152,16 +275,14 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             </div>
             <div class="grid grid-cols-2 gap-20 border-t border-slate-100 pt-10">
                <div>
-                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Prepared For</p>
-                 ${project.contacts.filter(c => c.side === 'customer').length > 0
-                   ? project.contacts.filter(c => c.side === 'customer').map(c => `<p class="text-sm font-black uppercase text-slate-900">${c.name}</p><p class="text-xs text-slate-500 mb-1">${c.email || ''}</p>`).join('')
-                   : `<p class="text-sm font-black uppercase text-slate-900">${project.customerName}</p>`}
+                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Customer Contact</p>
+                 <p class="text-sm font-black uppercase text-slate-900">${customerLead?.name || 'Primary Stakeholder'}</p>
+                 <p class="text-xs text-slate-500">${customerLead?.email || 'N/A'}</p>
                </div>
                <div>
-                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Created By</p>
-                 ${project.contacts.filter(c => c.side === 'internal').length > 0
-                   ? project.contacts.filter(c => c.side === 'internal').map(c => `<p class="text-sm font-black uppercase text-slate-900">${c.name}</p><p class="text-xs text-slate-500 mb-1">${c.email || ''}</p>`).join('')
-                   : `<p class="text-sm font-black uppercase text-slate-900">${companyName}</p>`}
+                 <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">${companyName} Lead</p>
+                 <p class="text-sm font-black uppercase text-slate-900">${internalPM?.name || 'Project Manager'}</p>
+                 <p class="text-xs text-slate-500">${internalPM?.email || 'N/A'}</p>
                </div>
             </div>
           </div>
@@ -192,7 +313,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <div class="text-lg leading-relaxed text-slate-800">
                 <p>MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for ${project.customerName}'s Learning Management System (LMS).</p>
                 <ul class="mt-4 space-y-2 list-none">
-                  <li>a. Safe activation at project location(s)</li>
+                  <li>a. Safe activation at Durham and Connecticut location(s)</li>
                   <li>b. Training of personnel (administration and end users)</li>
                   <li>c. Provide Training collateral</li>
                   <li>d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.</li>
@@ -201,350 +322,24 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             </section>
           </div>
 
-          <!-- 1.1 ACTIVITY DESCRIPTION -->
+          {/* Dynamic SOW Sections — all content editable in-app */}
+          ${sections.map(section => `
           <div class="sow-print-page bg-white space-y-12">
             <section class="space-y-8">
               <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.1 Activity Description</h3>
+                <h3 class="text-3xl font-black uppercase tracking-tighter">${section.title}</h3>
               </div>
               <div class="text-lg leading-relaxed text-slate-800">
-                <p>MedixSafe will lead the remote activation, configuration and training for the customer. In addition, the MedixSafe team will be responsible for providing training materials for ${project.customerName}'s LMS.</p>
+                ${section.content.split('\n').map(line => {
+                  if (line.startsWith('## ')) return \`<h4 class="text-lg font-black uppercase tracking-tighter mb-2 mt-6">\${line.slice(3)}</h4>\`;
+                  if (line.startsWith('- ') || line.startsWith('* ')) return \`<li class="ml-4">\${line.slice(2)}</li>\`;
+                  if (line.trim() === '') return '';
+                  return \`<p class="mb-3">\${line}</p>\`;
+                }).join('')}
               </div>
             </section>
           </div>
-
-          <!-- 1.2 SERVICE EXCLUSIONS -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.2 Service Exclusions</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                <p>The following services are excluded from this SOW: ● Any custom development/features/implementation</p>
-              </div>
-            </section>
-          </div>
-
-          <!-- 1.3 PROFESSIONAL SERVICES -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.3 Professional Services</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                <p>The Program Manager from the MedixSafe team is responsible for initiation, planning and controlling the services delivered, as well as rolling out and handing over the solution (s). These services may include the following activities:</p>
-              </section>
-            </div>
-          </div>
-
-          <!-- PLANNING -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">Planning</h3>
-              </div>
-              <ul class="space-y-4 list-disc pl-6 text-lg text-slate-800">
-                <li>Collaborating to ensure a comprehensive understanding of business requirements and success criteria</li>
-                <li>Defining the project scope and meticulously crafting a project plan or schedule to align with agreed-upon deadlines and deliverables</li>
-                <li>Documenting and securing approval for requirement specifications to ensure clarity and alignment</li>
-                <li>Identifying and establishing key project milestones for tracking progress</li>
-                <li>Strategically planning and allocating resources to ensure timely achievement of project deliverables</li>
-                <li>Confirming the availability of necessary resource capacity as outlined in the project plan to support successful outcomes</li>
-              </ul>
-            </section>
-          </div>
-
-          <!-- EXECUTING -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">Executing</h3>
-              </div>
-              <ul class="space-y-4 list-disc pl-6 text-lg text-slate-800">
-                <li>Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project</li>
-                <li>Execute plan with internal MedixSafe resources during delivery of items as specified in Section 1.1 Activity Description</li>
-                <li>Providing regular progress updates as needed and working with the Customer team to remove any dependencies</li>
-                <li>Provide any project plan updates</li>
-              </ul>
-            </section>
-          </div>
-
-          <!-- MONITORING AND CONTROLLING -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">Monitoring and Controlling</h3>
-              </div>
-              <ul class="space-y-4 list-disc pl-6 text-lg text-slate-800">
-                <li>Overseeing day-to-day operations to ensure tasks are executed efficiently and deliverables are achieved on schedule.</li>
-                <li>Maintaining comprehensive issue logs to track project challenges and resolutions.</li>
-                <li>Engaging in escalation processes with stakeholders as necessary to facilitate timely decision-making.</li>
-                <li>Collaborating effectively with MedixSafe project team members and leveraging internal resources to enhance project outcomes.</li>
-                <li>Proactively managing changes in project scope through Integrated Change Control procedures to align with project goals.</li>
-                <li>Ensuring that constraints and scope are effectively addressed to meet the established project objectives.</li>
-                <li>Continuously monitoring, recording, and evaluating project deliverables against the project plan to guarantee success.</li>
-              </ul>
-            </section>
-          </div>
-
-          <!-- 1.4 REMOTE ACTIVATION -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.4 Remote Activation</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                <p>Remote activation of safe(s) at project location(s). Once all safes are activated and ready for use and the training is completed the pilot will start.</p>
-                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.activationDeadline || 'TBD'}</strong></p>
-              </div>
-              <div class="commitment-box">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div class="flex justify-between items-center">
-                  <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 bg-[#d12913] rounded-full"></div>
-                    <span class="text-sm font-bold text-slate-900">Remote Activation of Safe(s) at Project Location(s)</span>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Responsibility</p>
-                    <p class="text-sm font-black text-slate-900">2026-01-07 EOD</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- 1.5 TRAINING OF PERSONNEL -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.5 Training of personnel</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                <p>MedixSafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable).</p>
-                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.trainingDeadline || 'TBD'}</strong></p>
-              </div>
-              <div class="commitment-box">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div class="flex justify-between items-center">
-                  <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 bg-[#d12913] rounded-full"></div>
-                    <span class="text-sm font-bold text-slate-900">Remote Training of Personnel</span>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Responsibility</p>
-                    <p class="text-sm font-black text-slate-900">2026-01-09 EOD</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- 1.6 PILOT SUCCESS CRITERIA -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.6 Pilot Success Criteria (Customer)</h3>
-              </div>
-              <div class="grid grid-cols-2 gap-12">
-                <div class="space-y-4">
-                  <h4 class="text-lg font-black uppercase tracking-tighter">1. Security & Compliance</h4>
-                  <p class="text-sm text-slate-600 leading-relaxed">Safe maintains secure, locked storage with no unauthorized access or tampering events. Access controls (keypad, badge, biometric, code) function consistently. Audit logs or access attempt records are accessible and easy to read. Records meet DEA and state storage requirements. Remote accessibility and oversight is available.</p>
-                </div>
-                <div class="space-y-4">
-                  <h4 class="text-lg font-black uppercase tracking-tighter">2. Reliability & System Stability</h4>
-                  <p class="text-sm text-slate-600 leading-relaxed">The safe operates without mechanical or electronic failures that inhibit access. Locking mechanisms, alarms, and backup features work as intended throughout the pilot.</p>
-                </div>
-                <div class="space-y-4">
-                  <h4 class="text-lg font-black uppercase tracking-tighter">3. Workflow Integration & User Experience</h4>
-                  <p class="text-sm text-slate-600 leading-relaxed">Safe supports timely access with minimal workflow disruption. End‑users report that the device is intuitive, easy to operate, and does not add burden to manual inventory tasks.</p>
-                </div>
-                <div class="space-y-4">
-                  <h4 class="text-lg font-black uppercase tracking-tighter">4. Operational Efficiency</h4>
-                  <p class="text-sm text-slate-600 leading-relaxed">Storage layout and capacity align with workflow needs. The safe supports existing manual inventory and daily processes without adding additional time.</p>
-                </div>
-                <div class="space-y-4">
-                  <h4 class="text-lg font-black uppercase tracking-tighter">5. Cost‑Effectiveness & Scalability</h4>
-                  <p class="text-sm text-slate-600 leading-relaxed">Purchase, installation, and maintenance costs meet expectations. The device shows potential for broader deployment with minimal environmental or process changes.</p>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- 1.7 PILOT STARTS -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.7 Pilot Starts</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilot Start Date:</span> <strong>{project.sowMeta?.pilotStartDate || 'TBD'}</strong></p>
-                <p className="mt-2"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.pilotStartDeadline || 'TBD'}</strong></p>
-              </div>
-              <div class="commitment-box">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div class="flex justify-between items-center">
-                  <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 bg-[#d12913] rounded-full"></div>
-                    <span class="text-sm font-bold text-slate-900">Pilot Start Date</span>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Responsibility</p>
-                    <p class="text-sm font-black text-slate-900">2026-02-04 EOD</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- 1.8 PILOT CONCLUSION -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.8 Pilot Conclusion</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                <p>Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders.</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.pilotConclusionDeadline || 'TBD'}</strong></p>
-              </div>
-              <div class="commitment-box">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div class="flex justify-between items-center">
-                  <div class="flex items-center gap-3">
-                    <div class="w-2 h-2 bg-[#d12913] rounded-full"></div>
-                    <span class="text-sm font-bold text-slate-900">Pilot End Date</span>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Responsibility</p>
-                    <p class="text-sm font-black text-slate-900">2026-03-06 EOD</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- CLOSING AND DOCUMENTATION -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">Closing and Documentation</h3>
-              </div>
-              <ul class="space-y-4 list-disc pl-6 text-lg text-slate-800">
-                <li>Final project completion report</li>
-                <li>Project plan updates</li>
-                <li>Project reviews and lessons learned</li>
-                <li>Project closure</li>
-              </ul>
-            </section>
-          </div>
-
-          <!-- COMMUNICATION MANAGEMENT -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">Communication Management</h3>
-              </div>
-              <p class="text-lg text-slate-800">● Please review the communication management table below</p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Meeting</th>
-                    <th>Frequency</th>
-                    <th>Chairperson</th>
-                    <th>Attendees</th>
-                    <th>Format</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td class="font-bold">Weekly Progress Meeting</td>
-                    <td>Weekly - up to 1 hour</td>
-                    <td>MedixSafe Program Manager</td>
-                    <td>
-                      <ul class="list-disc pl-4">
-                        <li>Customer Role Players</li>
-                        <li>MedixSafe Program Manager</li>
-                        <li>MedixSafe Project / Tech Team Leads</li>
-                      </ul>
-                    </td>
-                    <td>Video conferencing (MS Teams or Zoom)/ Phone/ In Person</td>
-                  </tr>
-                  <tr>
-                    <td class="font-bold">MedixSafe Testing and Validation</td>
-                    <td>During Critical Testing Phases</td>
-                    <td>MedixSafe Technical Account Manager/Program Manager</td>
-                    <td>
-                      <ul class="list-disc pl-4">
-                        <li>Customer Technical leads</li>
-                        <li>MedixSafe TAM/PM</li>
-                        <li>MedixSafe Development (on Call)</li>
-                        <li>MedixSafe QA (on call)</li>
-                      </ul>
-                    </td>
-                    <td>Testing and validation sessions</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-          </div>
-
-          <!-- 2.0 CUSTOMER RESPONSIBILITIES -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">2.0 Customer Responsibilities</h3>
-              </div>
-              <p class="text-lg text-slate-800 leading-relaxed">In addition to any other obligations under the agreement, the following are the Customers’ responsibilities, which are required to complete the activities described in this SOW.</p>
-              <ul class="space-y-4 list-disc pl-6 text-lg text-slate-800">
-                <li>The Customer will provide information and resources as necessary for MedixSafe to complete the services available, and deliverables described in this statement of work</li>
-                <li>The Customer will assign a PM/Central point of contact who is:
-                  <ul class="list-disc pl-6 mt-2 space-y-2">
-                    <li>Responsible for all Customer internal aspects of this engagement</li>
-                    <li>Authorized to make all decisions or obtain all required internal approvals as needed on this project</li>
-                    <li>Responsible for coordinating Customer team members</li>
-                    <li>Authorized to approve project changes and sign status reports</li>
-                  </ul>
-                </li>
-                <li>The Customer is responsible for providing MedixSafe personnel with the necessary security access to work areas, sites, etc. MedixSafe can help provide specifications and guidance as needed.</li>
-                <li>The Customer is responsible for setting up any power, network components or other assets necessary to complete installation.</li>
-              </ul>
-            </section>
-          </div>
-
-          <!-- 3.0 RISK MANAGEMENT -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">3.0 Risk Management</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800 space-y-6">
-                <p>MedixSafe will identify and assess project risks using a workshop in the initial phase of the project. The participants will be the MedixSafe project team, the customers’ project team and other relevant Customer personnel.</p>
-                <p>At the completion of the risk assessment process, MedixSafe will ensure all identified risks are recorded in a risk register. The risk register will be kept up to date by all parties and will be presented and discussed at each project status meeting. It is expected that new risks will arise or be identified during the project. All new risks shall be captured in the risk register as they arise, and all parties will track, monitor, and actively mitigate them.</p>
-              </div>
-            </section>
-          </div>
-
-          <!-- 3.1 SCOPE CHANGE MANAGEMENT -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">3.1 Scope Change Management</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800 space-y-6">
-                <p>The management of change during the project lifecycle is critical to successful delivery. Change management will effectively control change and variations to scope, cost, and time. Each out-of scope item will be estimated and presented to the customer for their approval.</p>
-                <p>The response to a change request will form the baseline for this process:</p>
-                <p>The change management process is as follows:</p>
-                <ol class="list-decimal pl-6 space-y-4">
-                  <li>Initiation: Identify and document the change request. Refer to project change request form for an example of a change request form i.e., stating the reason for change, the person who has logged the change request etc.</li>
-                  <li>Evaluation: Determine effort to analyze the impact: Determine the estimated effort and cost to perform the change impact analysis. Depending on this assessment and the project tolerances the change could be rejected unless Customer has agreed to fund the change impact analysis.
-                    <ul class="list-disc pl-6 mt-2">
-                      <li>Change Impact Analysis: Should the analysis from a. above either be within the projects set tolerances or Customer has agreed to fund the change impact analysis then assign an impact analysis owner and perform the impact analysis i.e., determine the effort, impact, and cost of the change.</li>
-                    </ul>
-                  </li>
-                  <li>Approval: Customer is required to agree and sign off the change request form. An approved Change request is known as a contract variation order (CVO) even if it does not include any additional charges to be provided by Customer.</li>
-                  <li>Close out: Customer is required to verify and sign off that the change has been implemented correctly within five days of change implementation and completion. This may require an additional purchase order to be provided by Customer.</li>
-                </ol>
-              </div>
-            </section>
-          </div>
+          `).join('')}
 
           <!-- DEPLOYMENT LOCATIONS -->
           <div class="sow-print-page bg-white space-y-12">
@@ -591,96 +386,12 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <div class="space-y-12">
                     <div class="border-b-2 border-slate-900 w-full h-24"></div>
                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Authorization</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${customerLead?.name || project.customerName}</p>
-                    <p class="text-xs text-slate-500">${customerLead?.role || ''}</p>
-                    <div class="border-b border-slate-300 w-full mt-8 pt-8"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
-                    <p class="text-sm text-slate-300">________________</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${project.customerName}</p>
                  </div>
                  <div class="space-y-12">
                     <div class="border-b-2 border-slate-900 w-full h-24"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Authorization</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${internalPM?.name || companyName}</p>
-                    <p class="text-xs text-slate-500">${internalPM?.role || ''}</p>
-                    <div class="border-b border-slate-300 w-full mt-8 pt-8"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
-                    <p class="text-sm text-slate-300">________________</p>
-                 </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- SECTION 5: ACKNOWLEDGEMENT OF COMPLETION -->
-          <div class="sow-print-page bg-white flex flex-col justify-between">
-            <section class="space-y-10">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">5. Acknowledgement – Completion of SOW</h3>
-              </div>
-
-              <!-- Information block -->
-              <div class="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-                <p class="text-lg text-slate-800 leading-relaxed">This document serves as the official acknowledgement that all services, deliverables, and obligations described in this Statement of Work have been completed to the satisfaction of the Customer and MedixSafe.</p>
-                <p class="text-sm text-slate-600">Both parties confirm that:</p>
-                <ul class="list-disc ml-6 space-y-2 text-sm text-slate-700">
-                  <li>All deliverables specified in Section 1 have been fulfilled.</li>
-                  <li>All Customer Responsibilities outlined in Section 2 have been met.</li>
-                  <li>Any scope changes were properly documented and approved per Section 3.</li>
-                  <li>The project has been formally reviewed and closed.</li>
-                </ul>
-              </div>
-
-              <!-- Fillable block: Date of Completion -->
-              <div class="p-6 border-2 border-dashed border-slate-300 rounded-2xl space-y-3">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date of Completion</p>
-                <p class="text-2xl font-black text-slate-900">${project.sowMeta?.completionDate || '_____ / _____ / _________'}</p>
-                <p class="text-xs text-slate-400 italic">To be completed upon final sign-off</p>
-              </div>
-
-              <!-- Information block: what's confirmed -->
-              <div class="space-y-4">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Confirmation of Deliverables</p>
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Remote Activation</p>
-                    <p class="text-sm text-slate-700">All safe(s) at all project locations activated and operational</p>
-                    <p class="text-xs text-slate-400 mt-1">Target: ${project.sowMeta?.activationDeadline || 'TBD'}</p>
-                  </div>
-                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Personnel Training</p>
-                    <p class="text-sm text-slate-700">All applicable staff trained and signed off</p>
-                    <p class="text-xs text-slate-400 mt-1">Target: ${project.sowMeta?.trainingDeadline || 'TBD'}</p>
-                  </div>
-                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Pilot Program</p>
-                    <p class="text-sm text-slate-700">Pilot completed, surveys collected, final recap delivered</p>
-                    <p class="text-xs text-slate-400 mt-1">Target: ${project.sowMeta?.pilotConclusionDeadline || 'TBD'}</p>
-                  </div>
-                  <div class="p-4 bg-white border border-slate-200 rounded-xl">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-brand mb-2">Documentation</p>
-                    <p class="text-sm text-slate-700">Project completion report and lessons learned filed</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Fillable block: Signatures -->
-              <div class="grid grid-cols-2 gap-20 pt-8">
-                 <div class="space-y-8">
-                    <div class="border-b-2 border-slate-900 w-full h-20"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Sign-Off</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${customerLead?.name || project.customerName}</p>
-                    <p class="text-xs text-slate-500">${customerLead?.role || ''}</p>
-                    <div class="mt-6 border-b border-slate-300 w-full pt-6"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
-                    <p class="text-sm text-slate-300">________________</p>
-                 </div>
-                 <div class="space-y-8">
-                    <div class="border-b-2 border-slate-900 w-full h-20"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Sign-Off</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${internalPM?.name || companyName}</p>
-                    <p class="text-xs text-slate-500">${internalPM?.role || ''}</p>
-                    <div class="mt-6 border-b border-slate-300 w-full pt-6"></div>
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
-                    <p class="text-sm text-slate-300">________________</p>
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Authorization</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${companyName}</p>
                  </div>
               </div>
             </section>
@@ -802,341 +513,57 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     const purposeText = `MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for ${project.customerName}'s Learning Management System (LMS).`;
     const purposeLines = doc.splitTextToSize(purposeText, 170);
     doc.text(purposeLines, 20, 45);
-    doc.text('a. Safe activation at project location(s)', 25, 70);
+    doc.text('a. Safe activation at Durham and Connecticut location(s)', 25, 70);
     doc.text('b. Training of personnel (administration and end users)', 25, 77);
     doc.text('c. Provide Training collateral', 25, 84);
     doc.text('d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.', 25, 91);
 
-    // 1.1 Activity Description
-    doc.addPage();
-    addSectionHeader('1.1 Activity Description');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    const activityText = `MedixSafe will lead the remote activation, configuration and training for the customer. In addition, the MedixSafe team will be responsible for providing training materials for ${project.customerName}'s LMS.`;
-    const activityLines = doc.splitTextToSize(activityText, 170);
-    doc.text(activityLines, 20, 45);
-
-    // 1.2 Service Exclusions
-    doc.addPage();
-    addSectionHeader('1.2 Service Exclusions');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text('The following services are excluded from this SOW: ● Any custom development/features/implementation', 20, 45);
-
-    // 1.3 Professional Services
-    doc.addPage();
-    addSectionHeader('1.3 Professional Services');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    const profText = `The Program Manager from the MedixSafe team is responsible for initiation, planning and controlling the services delivered, as well as rolling out and handing over the solution (s). These services may include the following activities:`;
-    const profLines = doc.splitTextToSize(profText, 170);
-    doc.text(profLines, 20, 45);
-
-    // Planning
-    doc.addPage();
-    addSectionHeader('Planning');
-    const planningItems = [
-      'Collaborating to ensure a comprehensive understanding of business requirements and success criteria',
-      'Defining the project scope and meticulously crafting a project plan or schedule to align with agreed-upon deadlines and deliverables',
-      'Documenting and securing approval for requirement specifications to ensure clarity and alignment',
-      'Identifying and establishing key project milestones for tracking progress',
-      'Strategically planning and allocating resources to ensure timely achievement of project deliverables',
-      'Confirming the availability of necessary resource capacity as outlined in the project plan to support successful outcomes'
-    ];
-    let planningY = 45;
-    planningItems.forEach(item => {
-      const lines = doc.splitTextToSize(`• ${item}`, 165);
-      doc.text(lines, 20, planningY);
-      planningY += (lines.length * 6) + 2;
-    });
-
-    // Executing
-    doc.addPage();
-    addSectionHeader('Executing');
-    const executingItems = [
-      'Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project',
-      'Execute plan with internal MedixSafe resources during delivery of items as specified in Section 1.1 Activity Description',
-      'Providing regular progress updates as needed and working with the Customer team to remove any dependencies',
-      'Provide any project plan updates'
-    ];
-    let executingY = 45;
-    executingItems.forEach(item => {
-      const lines = doc.splitTextToSize(`• ${item}`, 165);
-      doc.text(lines, 20, executingY);
-      executingY += (lines.length * 6) + 2;
-    });
-
-    // Monitoring
-    doc.addPage();
-    addSectionHeader('Monitoring and Controlling');
-    const monitoringItems = [
-      'Overseeing day-to-day operations to ensure tasks are executed efficiently and deliverables are achieved on schedule.',
-      'Maintaining comprehensive issue logs to track project challenges and resolutions.',
-      'Engaging in escalation processes with stakeholders as necessary to facilitate timely decision-making.',
-      'Collaborating effectively with MedixSafe project team members and leveraging internal resources to enhance project outcomes.',
-      'Proactively managing changes in project scope through Integrated Change Control procedures to align with project goals.',
-      'Ensuring that constraints and scope are effectively addressed to meet the established project objectives.',
-      'Continuously monitoring, recording, and evaluating project deliverables against the project plan to guarantee success.'
-    ];
-    let monitoringY = 45;
-    monitoringItems.forEach(item => {
-      const lines = doc.splitTextToSize(`• ${item}`, 165);
-      doc.text(lines, 20, monitoringY);
-      monitoringY += (lines.length * 6) + 2;
-    });
-
-    // 1.4 Remote Activation
-    doc.addPage();
-    addSectionHeader('1.4 Remote Activation');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    const activationText = `Remote activation of safe(s) at project location(s). Once all safes are activated and ready for use and the training is completed the pilot will start.</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.activationDeadline || 'TBD'}</strong>`;
-    const activationLines = doc.splitTextToSize(activationText, 170);
-    doc.text(activationLines, 20, 45);
-    
-    doc.setFillColor(248, 250, 252);
-    doc.rect(20, 70, 170, 30, 'F');
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('SECTION COMMITMENTS', 25, 78);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Remote Activation of Safe(s) at Project Location(s)', 25, 88);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('INTERNAL RESPONSIBILITY', 185, 85, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.text(project.sowMeta?.activationDeadline || 'TBD', 185, 92, { align: 'right' });
-
-    // 1.5 Training
-    doc.addPage();
-    addSectionHeader('1.5 Training of personnel');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    const trainingText = `MedixSafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable).</p><p class="mt-4"><span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>${project.sowMeta?.trainingDeadline || 'TBD'}</strong>`;
-    const trainingLines = doc.splitTextToSize(trainingText, 170);
-    doc.text(trainingLines, 20, 45);
-    
-    doc.setFillColor(248, 250, 252);
-    doc.rect(20, 70, 170, 30, 'F');
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('SECTION COMMITMENTS', 25, 78);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Remote Training of Personnel', 25, 88);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('INTERNAL RESPONSIBILITY', 185, 85, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.text(project.sowMeta?.trainingDeadline || 'TBD', 185, 92, { align: 'right' });
-
-    // 1.6 Success Criteria
-    doc.addPage();
-    addSectionHeader('1.6 Pilot Success Criteria (Customer)');
-    const criteria = [
-      { t: '1. Security & Compliance', c: 'Safe maintains secure, locked storage with no unauthorized access or tampering events. Access controls (keypad, badge, biometric, code) function consistently. Audit logs or access attempt records are accessible and easy to read. Records meet DEA and state storage requirements. Remote accessibility and oversight is available.' },
-      { t: '2. Reliability & System Stability', c: 'The safe operates without mechanical or electronic failures that inhibit access. Locking mechanisms, alarms, and backup features work as intended throughout the pilot.' },
-      { t: '3. Workflow Integration & User Experience', c: 'Safe supports timely access with minimal workflow disruption. End‑users report that the device is intuitive, easy to operate, and does not add burden to manual inventory tasks.' },
-      { t: '4. Operational Efficiency', c: 'Storage layout and capacity align with workflow needs. The safe supports existing manual inventory and daily processes without adding additional time.' },
-      { t: '5. Cost‑Effectiveness & Scalability', c: 'Purchase, installation, and maintenance costs meet expectations. The device shows potential for broader deployment with minimal environmental or process changes.' }
-    ];
-    let criteriaY = 45;
-    criteria.forEach(item => {
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(item.t, 20, criteriaY);
-      criteriaY += 6;
-      doc.setFontSize(10);
+    // Dynamic SOW sections — rendered from editable sections state
+    sections.forEach(section => {
+      doc.addPage();
+      addSectionHeader(section.title);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'normal');
-      const lines = doc.splitTextToSize(item.c, 170);
-      doc.text(lines, 20, criteriaY);
-      criteriaY += (lines.length * 5) + 5;
-    });
-
-    // 1.7 Pilot Starts
-    doc.addPage();
-    addSectionHeader('1.7 Pilot Starts');
-    const pilotText = `Pilot Start Date: ${project.sowMeta?.pilotStartDate || 'TBD'}  |  Timeline for Completion: ${project.sowMeta?.pilotStartDeadline || 'TBD'}`;
-    doc.text(doc.splitTextToSize(pilotText, 170), 20, 45);
-    doc.setFillColor(248, 250, 252);
-    doc.rect(20, 60, 170, 30, 'F');
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('SECTION COMMITMENTS', 25, 68);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Pilot Start Date', 25, 78);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('CUSTOMER RESPONSIBILITY', 185, 75, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.text(project.sowMeta?.pilotStartDeadline || 'TBD', 185, 82, { align: 'right' });
-
-    // 1.8 Pilot Conclusion
-    doc.addPage();
-    addSectionHeader('1.8 Pilot Conclusion');
-    doc.text(doc.splitTextToSize(`Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to ${project.customerName} Stakeholders. Timeline for Completion: ${project.sowMeta?.pilotConclusionDeadline || 'TBD'}`, 170), 20, 45);
-    doc.setFillColor(248, 250, 252);
-    doc.rect(20, 60, 170, 30, 'F');
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('SECTION COMMITMENTS', 25, 68);
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Pilot End Date', 25, 78);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text('CUSTOMER RESPONSIBILITY', 185, 75, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.text(project.sowMeta?.pilotConclusionDeadline || 'TBD', 185, 82, { align: 'right' });
-
-    // Closing
-    doc.addPage();
-    addSectionHeader('Closing and Documentation');
-    const closingItems = ['Final project completion report', 'Project plan updates', 'Project reviews and lessons learned', 'Project closure'];
-    let closingY = 45;
-    closingItems.forEach(item => {
-      doc.text(`• ${item}`, 20, closingY);
-      closingY += 7;
-    });
-
-    // Communication
-    doc.addPage();
-    addSectionHeader('Communication Management');
-    doc.text('● Please review the communication management table below', 20, 45);
-    autoTable(doc, {
-      startY: 50,
-      head: [['Meeting', 'Frequency', 'Chairperson', 'Attendees', 'Format']],
-      body: [
-        ['Weekly Progress Meeting', 'Weekly - up to 1 hour', 'MedixSafe Program Manager', 'Customer Role Players, MedixSafe PM, Tech Leads', 'Video/Phone/In Person'],
-        ['Testing and Validation', 'During Critical Phases', 'MedixSafe TAM/PM', 'Customer Tech Leads, MedixSafe TAM/PM, Dev, QA', 'Testing sessions']
-      ],
-      headStyles: { fillColor: [248, 250, 252], textColor: [209, 41, 19], fontSize: 8 }
-    });
-
-    // 2.0 Responsibilities
-    doc.addPage();
-    addSectionHeader('2.0 Customer Responsibilities');
-    const respText = `In addition to any other obligations under the agreement, the following are the Customers’ responsibilities, which are required to complete the activities described in this SOW.`;
-    doc.text(doc.splitTextToSize(respText, 170), 20, 45);
-    const respItems = [
-      'The Customer will provide information and resources as necessary for MedixSafe to complete the services available, and deliverables described in this statement of work',
-      'The Customer will assign a PM/Central point of contact who is responsible for all Customer internal aspects, authorized to make decisions, and coordinate team members',
-      'The Customer is responsible for providing MedixSafe personnel with the necessary security access to work areas, sites, etc.',
-      'The Customer is responsible for setting up any power, network components or other assets necessary to complete installation.'
-    ];
-    let respY = 60;
-    respItems.forEach(item => {
-      const lines = doc.splitTextToSize(`• ${item}`, 165);
-      doc.text(lines, 20, respY);
-      respY += (lines.length * 6) + 2;
-    });
-
-    // 3.0 Risk
-    doc.addPage();
-    addSectionHeader('3.0 Risk Management');
-    const riskText = `MedixSafe will identify and assess project risks using a workshop in the initial phase of the project. The participants will be the MedixSafe project team, the customers’ project team and other relevant Customer personnel.\n\nAt the completion of the risk assessment process, MedixSafe will ensure all identified risks are recorded in a risk register. The risk register will be kept up to date by all parties and will be presented and discussed at each project status meeting.`;
-    doc.text(doc.splitTextToSize(riskText, 170), 20, 45);
-
-    // 3.1 Scope
-    doc.addPage();
-    addSectionHeader('3.1 Scope Change Management');
-    const scopeText = `The management of change during the project lifecycle is critical to successful delivery. Change management will effectively control change and variations to scope, cost, and time. Each out-of scope item will be estimated and presented to the customer for their approval.`;
-    doc.text(doc.splitTextToSize(scopeText, 170), 20, 45);
-
-    // Locations
-    doc.addPage();
-    addSectionHeader('Deployment Locations');
-    if (project.locations.length > 0) {
-      const locData = project.locations.map(loc => [loc.name ?? '', loc.address ?? '', loc.numSafes ?? 0, loc.numUsers ?? 0, loc.deploymentType ?? '']);
-      autoTable(doc, {
-        startY: 40,
-        head: [['Location', 'Address', 'Safes', 'Users', 'Type']],
-        body: locData,
+      doc.setTextColor(0, 0, 0);
+      let sectionY = 45;
+      const lines = section.content.split('\n');
+      lines.forEach(line => {
+        if (!line.trim()) { sectionY += 4; return; }
+        if (line.startsWith('## ')) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(12);
+          doc.text(line.slice(3), 20, sectionY);
+          sectionY += 8;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(11);
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+          const wrapped = doc.splitTextToSize('• ' + line.slice(2), 165);
+          wrapped.forEach((l: string) => {
+            if (sectionY > 270) { doc.addPage(); addSectionHeader(section.title + ' (cont.)'); sectionY = 45; }
+            doc.text(l, 25, sectionY);
+            sectionY += 7;
+          });
+        } else {
+          const wrapped = doc.splitTextToSize(line, 170);
+          wrapped.forEach((l: string) => {
+            if (sectionY > 270) { doc.addPage(); addSectionHeader(section.title + ' (cont.)'); sectionY = 45; }
+            doc.text(l, 20, sectionY);
+            sectionY += 7;
+          });
+        }
       });
-    } else {
-      doc.text('No locations defined in charter.', 20, 45);
-    }
-
-    // Section 4: Authorization / Contract Acceptance
-    doc.addPage();
-    addSectionHeader('4. Statement of Work Contract Acceptance');
-    const effectiveDate = project.sowMeta?.contractAcceptanceDate || new Date().toLocaleDateString();
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${effectiveDate}.`, 20, 45, { maxWidth: 170 });
-    const custAuth = project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead'))) || project.contacts.find(c => c.side === 'customer');
-    const intAuth = project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead'))) || project.contacts.find(c => c.side === 'internal');
-    doc.line(20, 100, 90, 100);
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.text('Customer Authorization', 20, 107);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
-    doc.text(custAuth?.name || project.customerName, 20, 115);
-    doc.setFontSize(9); doc.text(custAuth?.role || '', 20, 121);
-    doc.line(20, 134, 90, 134);
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.text('Date', 20, 140);
-    doc.line(120, 100, 190, 100);
-    doc.setFont('helvetica', 'bold'); doc.text('MedixSafe Authorization', 120, 107);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
-    doc.text(intAuth?.name || companyName, 120, 115);
-    doc.setFontSize(9); doc.text(intAuth?.role || '', 120, 121);
-    doc.line(120, 134, 190, 134);
-    doc.setFont('helvetica', 'bold'); doc.text('Date', 120, 140);
-
-    // Section 5: Acknowledgement of Completion
-    doc.addPage();
-    addSectionHeader('5. Acknowledgement – Completion of SOW');
-    doc.setFontSize(11); doc.setFont('helvetica', 'normal');
-    const ackText = 'This document serves as the official acknowledgement that all services, deliverables, and obligations described in this Statement of Work have been completed to the satisfaction of the Customer and MedixSafe.';
-    doc.text(doc.splitTextToSize(ackText, 170), 20, 45);
-    let ackY = 65;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-    doc.text('Both parties confirm that:', 20, ackY); ackY += 8;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-    const ackItems = [
-      'All deliverables specified in Section 1 have been fulfilled.',
-      'All Customer Responsibilities outlined in Section 2 have been met.',
-      'Any scope changes were properly documented and approved per Section 3.',
-      'The project has been formally reviewed and closed.',
-    ];
-    ackItems.forEach(item => { doc.text(`• ${item}`, 25, ackY); ackY += 7; });
-    ackY += 6;
-    doc.setFillColor(253, 232, 229); doc.rect(20, ackY, 170, 18, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.text('DATE OF COMPLETION', 24, ackY + 7);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(14);
-    doc.text(project.sowMeta?.completionDate || '_____ / _____ / _________', 24, ackY + 15);
-    ackY += 28;
-    autoTable(doc, {
-      startY: ackY,
-      head: [['Deliverable', 'Status', 'Target Date']],
-      body: [
-        ['Remote Activation', 'Complete', project.sowMeta?.activationDeadline || 'TBD'],
-        ['Personnel Training', 'Complete', project.sowMeta?.trainingDeadline || 'TBD'],
-        ['Pilot Program', 'Complete', project.sowMeta?.pilotConclusionDeadline || 'TBD'],
-        ['Final Documentation', 'Complete', ''],
-      ],
     });
-    const ackTableEnd = (doc as any).lastAutoTable.finalY + 20;
-    doc.line(20, ackTableEnd, 90, ackTableEnd);
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
-    doc.text('Customer Sign-Off', 20, ackTableEnd + 6);
-    doc.setFont('helvetica', 'normal'); doc.text(custAuth?.name || project.customerName, 20, ackTableEnd + 13);
-    doc.line(20, ackTableEnd + 26, 90, ackTableEnd + 26);
-    doc.setFont('helvetica', 'bold'); doc.text('Date Signed', 20, ackTableEnd + 32);
-    doc.line(120, ackTableEnd, 190, ackTableEnd);
-    doc.setFont('helvetica', 'bold'); doc.text('MedixSafe Sign-Off', 120, ackTableEnd + 6);
-    doc.setFont('helvetica', 'normal'); doc.text(intAuth?.name || companyName, 120, ackTableEnd + 13);
-    doc.line(120, ackTableEnd + 26, 190, ackTableEnd + 26);
-    doc.setFont('helvetica', 'bold'); doc.text('Date Signed', 120, ackTableEnd + 32);
+
+    // Authorization
+    doc.addPage();
+    addSectionHeader('Authorization');
+    doc.text(`By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${new Date().toLocaleDateString()}.`, 20, 45);
+    doc.line(20, 100, 90, 100);
+    doc.text('Customer Authorization', 20, 105);
+    doc.text(project.customerName, 20, 112);
+    doc.line(120, 100, 190, 100);
+    doc.text('Internal Authorization', 120, 105);
+    doc.text(companyName, 120, 112);
 
     // Stakeholders
     doc.addPage();
@@ -1198,49 +625,6 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
         </div>
       </div>
 
-      {/* SOW Dates & Meta Panel */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <button
-          onClick={() => setIsSowMetaEditing(v => !v)}
-          className="w-full flex justify-between items-center px-8 py-5 hover:bg-slate-50 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center"><Calendar size={16} className="text-white" /></div>
-            <div className="text-left">
-              <h3 className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em]">SOW Dates & Completion Fields</h3>
-              <p className="text-[10px] text-slate-400 font-bold">Fillable fields — pulled into the printed SOW and Section 5 acknowledgement</p>
-            </div>
-          </div>
-          <Edit3 size={16} className="text-slate-400" />
-        </button>
-        {isSowMetaEditing && (
-          <div className="px-8 pb-8 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {([
-                { key: 'activationDeadline', label: '1.4 Activation Deadline', placeholder: 'e.g. EOD 1/7/2026' },
-                { key: 'trainingDeadline', label: '1.5 Training Deadline', placeholder: 'e.g. EOD 1/9/2026' },
-                { key: 'pilotStartDate', label: '1.7 Pilot Start Date', placeholder: 'e.g. 2/5/2026' },
-                { key: 'pilotStartDeadline', label: '1.7 Pre-Pilot Deadline', placeholder: 'e.g. EOD 2/4/2026' },
-                { key: 'pilotConclusionDeadline', label: '1.8 Pilot Conclusion', placeholder: 'e.g. 3/5/2026' },
-                { key: 'contractAcceptanceDate', label: 'Sec. 4 Contract Date', placeholder: 'e.g. 1/15/2026' },
-                { key: 'completionDate', label: 'Sec. 5 Date of Completion', placeholder: 'Filled at project close' },
-              ] as {key: keyof SowMeta; label: string; placeholder: string}[]).map(({ key, label, placeholder }) => (
-                <div key={key} className="space-y-1.5">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-                  <input
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold text-sm outline-none focus:border-brand transition-all"
-                    placeholder={placeholder}
-                    value={sowMeta[key] || ''}
-                    onChange={e => updateMeta(key, e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-            <p className="text-[10px] text-slate-400 italic">Changes save automatically. These values populate the timeline sections and the Section 5 completion form in both the preview and printed SOW.</p>
-          </div>
-        )}
-      </div>
-
       <div ref={docRef} className="space-y-6">
         {isPreview ? (
           <div className="bg-white rounded-[3rem] border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
@@ -1294,7 +678,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <div className="text-lg leading-relaxed text-slate-700">
                 <p>MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for {project.customerName}'s Learning Management System (LMS).</p>
                 <ul className="mt-4 space-y-2 list-none">
-                  <li>a. Safe activation at project location(s)</li>
+                  <li>a. Safe activation at Durham and Connecticut location(s)</li>
                   <li>b. Training of personnel (administration and end users)</li>
                   <li>c. Provide Training collateral</li>
                   <li>d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.</li>
@@ -1302,324 +686,19 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               </div>
             </div>
 
-            {/* 1.1 Activity Description */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.1 Activity Description</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p>MedixSafe will lead the remote activation, configuration and training for the customer. In addition, the MedixSafe team will be responsible for providing training materials for {project.customerName}'s LMS.</p>
-              </div>
-            </div>
-
-            {/* 1.2 Service Exclusions */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.2 Service Exclusions</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p>The following services are excluded from this SOW: ● Any custom development/features/implementation</p>
-              </div>
-            </div>
-
-            {/* 1.3 Professional Services */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.3 Professional Services</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p>The Program Manager from the MedixSafe team is responsible for initiation, planning and controlling the services delivered, as well as rolling out and handing over the solution (s). These services may include the following activities:</p>
-              </div>
-            </div>
-
-            {/* Planning */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">Planning</h3>
-              </div>
-              <ul className="space-y-4 list-disc pl-6 text-lg text-slate-700">
-                <li>Collaborating to ensure a comprehensive understanding of business requirements and success criteria</li>
-                <li>Defining the project scope and meticulously crafting a project plan or schedule to align with agreed-upon deadlines and deliverables</li>
-                <li>Documenting and securing approval for requirement specifications to ensure clarity and alignment</li>
-                <li>Identifying and establishing key project milestones for tracking progress</li>
-                <li>Strategically planning and allocating resources to ensure timely achievement of project deliverables</li>
-                <li>Confirming the availability of necessary resource capacity as outlined in the project plan to support successful outcomes</li>
-              </ul>
-            </div>
-
-            {/* Executing */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">Executing</h3>
-              </div>
-              <ul className="space-y-4 list-disc pl-6 text-lg text-slate-700">
-                <li>Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project</li>
-                <li>Execute plan with internal MedixSafe resources during delivery of items as specified in Section 1.1 Activity Description</li>
-                <li>Providing regular progress updates as needed and working with the Customer team to remove any dependencies</li>
-                <li>Provide any project plan updates</li>
-              </ul>
-            </div>
-
-            {/* Monitoring and Controlling */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter text-wrap">Monitoring and Controlling</h3>
-              </div>
-              <ul className="space-y-4 list-disc pl-6 text-lg text-slate-700">
-                <li>Overseeing day-to-day operations to ensure tasks are executed efficiently and deliverables are achieved on schedule.</li>
-                <li>Maintaining comprehensive issue logs to track project challenges and resolutions.</li>
-                <li>Engaging in escalation processes with stakeholders as necessary to facilitate timely decision-making.</li>
-                <li>Collaborating effectively with MedixSafe project team members and leveraging internal resources to enhance project outcomes.</li>
-                <li>Proactively managing changes in project scope through Integrated Change Control procedures to align with project goals.</li>
-                <li>Ensuring that constraints and scope are effectively addressed to meet the established project objectives.</li>
-                <li>Continuously monitoring, recording, and evaluating project deliverables against the project plan to guarantee success.</li>
-              </ul>
-            </div>
-
-            {/* 1.4 Remote Activation */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-12">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.4 Remote Activation</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p>Remote activation of safe(s) at project location(s). Once all safes are activated and ready for use and the training is completed the pilot will start.</p>
-                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.activationDeadline || 'TBD'}</strong></p>
-              </div>
-              <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-[#d12913] rounded-full" />
-                    <span className="text-sm font-bold text-slate-900">Remote Activation of Safe(s) at Project Location(s)</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.activationDeadline || 'TBD'}</p>
-                  </div>
+            {/* Dynamic SOW Sections Preview — rendered from editable sections state */}
+            {sections.map(section => (
+              <div key={section.id} className="p-20 bg-white border-t border-slate-100 space-y-8">
+                <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
+                  <h3 className="text-3xl font-black uppercase tracking-tighter">{section.title}</h3>
+                </div>
+                <div className="text-lg leading-relaxed text-slate-700 prose max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                    {section.content}
+                  </ReactMarkdown>
                 </div>
               </div>
-            </div>
-
-            {/* 1.5 Training of personnel */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-12">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.5 Training of personnel</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p>MedixSafe has been training personnel on a per safe activation basis. Part of the kick-off prior to pilot launch is to verify everyone has been trained and is comfortable with the safes, their operations and the software administration (where applicable).</p>
-                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.trainingDeadline || 'TBD'}</strong></p>
-              </div>
-              <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-[#d12913] rounded-full" />
-                    <span className="text-sm font-bold text-slate-900">Remote Training of Personnel</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.trainingDeadline || 'TBD'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 1.6 Pilot Success Criteria (Customer) */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-12">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.6 Pilot Success Criteria (Customer)</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div className="space-y-4">
-                  <h4 className="text-lg font-black uppercase tracking-tighter">1. Security & Compliance</h4>
-                  <p className="text-sm text-slate-600 leading-relaxed">Safe maintains secure, locked storage with no unauthorized access or tampering events. Access controls (keypad, badge, biometric, code) function consistently. Audit logs or access attempt records are accessible and easy to read. Records meet DEA and state storage requirements. Remote accessibility and oversight is available.</p>
-                </div>
-                <div className="space-y-4">
-                  <h4 className="text-lg font-black uppercase tracking-tighter">2. Reliability & System Stability</h4>
-                  <p className="text-sm text-slate-600 leading-relaxed">The safe operates without mechanical or electronic failures that inhibit access. Locking mechanisms, alarms, and backup features work as intended throughout the pilot.</p>
-                </div>
-                <div className="space-y-4">
-                  <h4 className="text-lg font-black uppercase tracking-tighter">3. Workflow Integration & User Experience</h4>
-                  <p className="text-sm text-slate-600 leading-relaxed">Safe supports timely access with minimal workflow disruption. End‑users report that the device is intuitive, easy to operate, and does not add burden to manual inventory tasks.</p>
-                </div>
-                <div className="space-y-4">
-                  <h4 className="text-lg font-black uppercase tracking-tighter">4. Operational Efficiency</h4>
-                  <p className="text-sm text-slate-600 leading-relaxed">Storage layout and capacity align with workflow needs. The safe supports existing manual inventory and daily processes without adding additional time.</p>
-                </div>
-                <div className="space-y-4">
-                  <h4 className="text-lg font-black uppercase tracking-tighter">5. Cost‑Effectiveness & Scalability</h4>
-                  <p className="text-sm text-slate-600 leading-relaxed">Purchase, installation, and maintenance costs meet expectations. The device shows potential for broader deployment with minimal environmental or process changes.</p>
-                </div>
-              </div>
-            </div>
-
-            {/* 1.7 Pilot Starts */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-12">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.7 Pilot Starts</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilot Start Date:</span> <strong>{project.sowMeta?.pilotStartDate || 'TBD'}</strong></p>
-                <p className="mt-2"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.pilotStartDeadline || 'TBD'}</strong></p>
-              </div>
-              <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-[#d12913] rounded-full" />
-                    <span className="text-sm font-bold text-slate-900">Pilot Start Date</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.pilotStartDeadline || 'TBD'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 1.8 Pilot Conclusion */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-12">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.8 Pilot Conclusion</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p>Outgoing Survey to stakeholders. Final meeting to recap pilot, survey, etc. Meeting notes and recap to be filed and provided to {project.customerName} Stakeholders.</p>
-                <p className="mt-4"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Timeline for Completion:</span> <strong>{project.sowMeta?.pilotConclusionDeadline || 'TBD'}</strong></p>
-              </div>
-              <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-6">Section Commitments</p>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-[#d12913] rounded-full" />
-                    <span className="text-sm font-bold text-slate-900">Pilot End Date</span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Responsibility</p>
-                    <p className="text-sm font-black text-slate-900">{project.sowMeta?.pilotConclusionDeadline || 'TBD'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Closing and Documentation */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">Closing and Documentation</h3>
-              </div>
-              <ul className="space-y-4 list-disc pl-6 text-lg text-slate-700">
-                <li>Final project completion report</li>
-                <li>Project plan updates</li>
-                <li>Project reviews and lessons learned</li>
-                <li>Project closure</li>
-              </ul>
-            </div>
-
-            {/* Communication Management */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-12">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">Communication Management</h3>
-              </div>
-              <p className="text-lg text-slate-700">● Please review the communication management table below</p>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50">
-                      <th className="p-4 border border-slate-200 text-left text-xs font-black uppercase tracking-widest text-[#d12913]">Meeting</th>
-                      <th className="p-4 border border-slate-200 text-left text-xs font-black uppercase tracking-widest text-[#d12913]">Frequency</th>
-                      <th className="p-4 border border-slate-200 text-left text-xs font-black uppercase tracking-widest text-[#d12913]">Chairperson</th>
-                      <th className="p-4 border border-slate-200 text-left text-xs font-black uppercase tracking-widest text-[#d12913]">Attendees</th>
-                      <th className="p-4 border border-slate-200 text-left text-xs font-black uppercase tracking-widest text-[#d12913]">Format</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="p-4 border border-slate-200 text-sm font-bold">Weekly Progress Meeting</td>
-                      <td className="p-4 border border-slate-200 text-sm">Weekly - up to 1 hour</td>
-                      <td className="p-4 border border-slate-200 text-sm">MedixSafe Program Manager</td>
-                      <td className="p-4 border border-slate-200 text-sm">
-                        <ul className="list-disc pl-4 space-y-1">
-                          <li>Customer Role Players</li>
-                          <li>MedixSafe Program Manager</li>
-                          <li>MedixSafe Project / Tech Team Leads</li>
-                        </ul>
-                      </td>
-                      <td className="p-4 border border-slate-200 text-sm">Video conferencing (MS Teams or Zoom)/ Phone/ In Person</td>
-                    </tr>
-                    <tr>
-                      <td className="p-4 border border-slate-200 text-sm font-bold">MedixSafe Testing and Validation</td>
-                      <td className="p-4 border border-slate-200 text-sm">During Critical Testing Phases</td>
-                      <td className="p-4 border border-slate-200 text-sm text-wrap">MedixSafe Technical Account Manager/Program Manager</td>
-                      <td className="p-4 border border-slate-200 text-sm">
-                        <ul className="list-disc pl-4 space-y-1">
-                          <li>Customer Technical leads</li>
-                          <li>MedixSafe TAM/PM</li>
-                          <li>MedixSafe Development (on Call)</li>
-                          <li>MedixSafe QA (on call)</li>
-                        </ul>
-                      </td>
-                      <td className="p-4 border border-slate-200 text-sm">Testing and validation sessions</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 2.0 Customer Responsibilities */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">2.0 Customer Responsibilities</h3>
-              </div>
-              <p className="text-lg text-slate-700 leading-relaxed">In addition to any other obligations under the agreement, the following are the Customers’ responsibilities, which are required to complete the activities described in this SOW.</p>
-              <ul className="space-y-4 list-disc pl-6 text-lg text-slate-700">
-                <li>The Customer will provide information and resources as necessary for MedixSafe to complete the services available, and deliverables described in this statement of work</li>
-                <li>The Customer will assign a PM/Central point of contact who is:
-                  <ul className="list-disc pl-6 mt-2 space-y-2">
-                    <li>Responsible for all Customer internal aspects of this engagement</li>
-                    <li>Authorized to make all decisions or obtain all required internal approvals as needed on this project</li>
-                    <li>Responsible for coordinating Customer team members</li>
-                    <li>Authorized to approve project changes and sign status reports</li>
-                  </ul>
-                </li>
-                <li>The Customer is responsible for providing MedixSafe personnel with the necessary security access to work areas, sites, etc. MedixSafe can help provide specifications and guidance as needed.</li>
-                <li>The Customer is responsible for setting up any power, network components or other assets necessary to complete installation.</li>
-              </ul>
-            </div>
-
-            {/* 3.0 Risk Management */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">3.0 Risk Management</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700 space-y-6">
-                <p>MedixSafe will identify and assess project risks using a workshop in the initial phase of the project. The participants will be the MedixSafe project team, the customers’ project team and other relevant Customer personnel.</p>
-                <p>At the completion of the risk assessment process, MedixSafe will ensure all identified risks are recorded in a risk register. The risk register will be kept up to date by all parties and will be presented and discussed at each project status meeting. It is expected that new risks will arise or be identified during the project. All new risks shall be captured in the risk register as they arise, and all parties will track, monitor, and actively mitigate them.</p>
-              </div>
-            </div>
-
-            {/* 3.1 Scope Change Management */}
-            <div className="p-20 bg-white border-t border-slate-100 space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">3.1 Scope Change Management</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700 space-y-6">
-                <p>The management of change during the project lifecycle is critical to successful delivery. Change management will effectively control change and variations to scope, cost, and time. Each out-of scope item will be estimated and presented to the customer for their approval.</p>
-                <p>The response to a change request will form the baseline for this process:</p>
-                <p>The change management process is as follows:</p>
-                <ol className="list-decimal pl-6 space-y-4">
-                  <li>Initiation: Identify and document the change request. Refer to project change request form for an example of a change request form i.e., stating the reason for change, the person who has logged the change request etc.</li>
-                  <li>Evaluation: Determine effort to analyze the impact: Determine the estimated effort and cost to perform the change impact analysis. Depending on this assessment and the project tolerances the change could be rejected unless Customer has agreed to fund the change impact analysis.
-                    <ul className="list-disc pl-6 mt-2">
-                      <li>Change Impact Analysis: Should the analysis from a. above either be within the projects set tolerances or Customer has agreed to fund the change impact analysis then assign an impact analysis owner and perform the impact analysis i.e., determine the effort, impact, and cost of the change.</li>
-                    </ul>
-                  </li>
-                  <li>Approval: Customer is required to agree and sign off the change request form. An approved Change request is known as a contract variation order (CVO) even if it does not include any additional charges to be provided by Customer.</li>
-                  <li>Close out: Customer is required to verify and sign off that the change has been implemented correctly within five days of change implementation and completion. This may require an additional purchase order to be provided by Customer.</li>
-                </ol>
-                <p>Changes may be initiated by Customer because of functional or feature requirements changes, market or regulatory requirements. Situations may occasionally arise where MedixSafe initiates a change request, providing Customer with more flexible options. In such situations attention is directed to the impact and risks of such a change on existing project objectives.</p>
-                <p>The changes requested to the agreed project baseline will be identified and documented and the impact will be assessed (assessment may be billable). At completion of the assessment, change activity will be carried out upon agreement by Customer.</p>
-              </div>
-            </div>
-
+            ))}
             {/* Deployment Locations */}
             <div className="p-20 bg-white border-t border-slate-100 space-y-8">
               <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
@@ -1650,122 +729,23 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             {/* Authorization Preview */}
             <div className="p-20 border-t border-slate-100 bg-white space-y-12">
               <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">4. Statement of Work Contract Acceptance</h3>
+                <h3 className="text-3xl font-black uppercase tracking-tighter">Authorization</h3>
               </div>
-              <p className="text-lg text-slate-700 leading-relaxed">By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of {project.sowMeta?.contractAcceptanceDate || new Date().toLocaleDateString()}.</p>
-              <div className="grid grid-cols-2 gap-20 pt-8">
-                <div className="space-y-6">
+              <p className="text-lg text-slate-700 leading-relaxed">By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of {new Date().toLocaleDateString()}.</p>
+              <div className="grid grid-cols-2 gap-20 pt-20">
+                <div className="space-y-12">
                   <div className="border-b-2 border-slate-200 w-full h-24"></div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Authorization</p>
-                    <p className="text-sm font-black uppercase text-slate-900">
-                      {project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
-                        || project.contacts.find(c => c.side === 'customer')?.name
-                        || project.customerName}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.role
-                        || project.contacts.find(c => c.side === 'customer')?.role || ''}
-                    </p>
+                    <p className="text-sm font-black uppercase text-slate-900">{project.customerName}</p>
                   </div>
-                  <div className="border-b border-slate-200 w-full pt-4"></div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
-                  <p className="text-slate-300 text-sm">________________</p>
                 </div>
-                <div className="space-y-6">
+                <div className="space-y-12">
                   <div className="border-b-2 border-slate-200 w-full h-24"></div>
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Authorization</p>
-                    <p className="text-sm font-black uppercase text-slate-900">
-                      {project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
-                        || project.contacts.find(c => c.side === 'internal')?.name
-                        || globalSettings.companyName || 'MedixSafe'}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      {project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.role
-                        || project.contacts.find(c => c.side === 'internal')?.role || ''}
-                    </p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Authorization</p>
+                    <p className="text-sm font-black uppercase text-slate-900">{globalSettings.companyName || 'MedixSafe'}</p>
                   </div>
-                  <div className="border-b border-slate-200 w-full pt-4"></div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</p>
-                  <p className="text-slate-300 text-sm">________________</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 5: Acknowledgement of Completion */}
-            <div className="p-20 border-t border-slate-100 bg-white space-y-10">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">5. Acknowledgement – Completion of SOW</h3>
-              </div>
-
-              {/* Information block */}
-              <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
-                <p className="text-lg text-slate-800 leading-relaxed">This document serves as the official acknowledgement that all services, deliverables, and obligations described in this Statement of Work have been completed to the satisfaction of both the Customer and MedixSafe.</p>
-                <p className="text-sm text-slate-600">Both parties confirm that:</p>
-                <ul className="list-disc ml-6 space-y-2 text-sm text-slate-700">
-                  <li>All deliverables specified in Section 1 have been fulfilled.</li>
-                  <li>All Customer Responsibilities outlined in Section 2 have been met.</li>
-                  <li>Any scope changes were properly documented and approved per Section 3.</li>
-                  <li>The project has been formally reviewed and closed.</li>
-                </ul>
-              </div>
-
-              {/* Fillable block: Date of Completion */}
-              <div className="p-6 border-2 border-dashed border-brand/30 rounded-2xl space-y-3 bg-brand/5">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Date of Completion</p>
-                <p className="text-3xl font-black text-slate-900">{project.sowMeta?.completionDate || '_____ / _____ / _________'}</p>
-                <p className="text-xs text-slate-400 italic">Set this via the SOW Dates panel above — filled upon final sign-off</p>
-              </div>
-
-              {/* Information block: Deliverables confirmation */}
-              <div className="space-y-3">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Confirmation of Deliverables</p>
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { label: 'Remote Activation', detail: 'All safe(s) activated and operational', target: project.sowMeta?.activationDeadline },
-                    { label: 'Personnel Training', detail: 'All applicable staff trained and signed off', target: project.sowMeta?.trainingDeadline },
-                    { label: 'Pilot Program', detail: 'Pilot completed, surveys collected, recap delivered', target: project.sowMeta?.pilotConclusionDeadline },
-                    { label: 'Documentation', detail: 'Completion report and lessons learned filed', target: undefined },
-                  ].map(item => (
-                    <div key={item.label} className="p-4 bg-white border border-slate-200 rounded-xl space-y-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-brand">{item.label}</p>
-                      <p className="text-sm text-slate-700">{item.detail}</p>
-                      {item.target && <p className="text-xs text-slate-400 mt-1">Target: {item.target}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Fillable block: Signatures */}
-              <div className="grid grid-cols-2 gap-20 pt-8">
-                <div className="space-y-6">
-                  <div className="border-b-2 border-slate-200 w-full h-20"></div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Sign-Off</p>
-                    <p className="text-sm font-black uppercase text-slate-900">
-                      {project.contacts.find(c => c.side === 'customer' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
-                        || project.contacts.find(c => c.side === 'customer')?.name
-                        || project.customerName}
-                    </p>
-                  </div>
-                  <div className="border-b border-slate-200 w-full pt-4"></div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
-                  <p className="text-slate-300 text-sm">________________</p>
-                </div>
-                <div className="space-y-6">
-                  <div className="border-b-2 border-slate-200 w-full h-20"></div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">MedixSafe Sign-Off</p>
-                    <p className="text-sm font-black uppercase text-slate-900">
-                      {project.contacts.find(c => c.side === 'internal' && (c.role.toLowerCase().includes('manager') || c.role.toLowerCase().includes('lead')))?.name
-                        || project.contacts.find(c => c.side === 'internal')?.name
-                        || globalSettings.companyName || 'MedixSafe'}
-                    </p>
-                  </div>
-                  <div className="border-b border-slate-200 w-full pt-4"></div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date Signed</p>
-                  <p className="text-slate-300 text-sm">________________</p>
                 </div>
               </div>
             </div>
@@ -1849,6 +829,18 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                 >
                   {isEditing ? <><Save size={16} /> Finish Editing</> : <><Edit3 size={16} /> Edit Sections</>}
                 </button>
+                {isEditing && (
+                  <button
+                    onClick={() => {
+                      if (confirm('Reset all sections to the default template? This cannot be undone.')) {
+                        setSections(DEFAULT_SOW_SECTIONS(project.customerName));
+                      }
+                    }}
+                    className="px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-dashed border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-400 transition-all flex items-center gap-2"
+                  >
+                    <RotateCcw size={14} /> Reset to Template
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1856,8 +848,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 flex items-center gap-4 opacity-60">
                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm"><FileText size={20} /></div>
                <div>
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Auto-Injected Framework</p>
-                  <p className="text-sm font-bold text-slate-900">Pages 01-03: Overview, Stakeholders, Success Criteria, Timeline, Costing</p>
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">SOW Sections — All Editable</p>
+                  <p className="text-sm font-bold text-slate-900">Click Edit Sections to rename titles or rewrite any section body. Changes are saved to this project.</p>
                </div>
             </div>
 
@@ -1898,7 +890,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                 className="w-full py-12 border-2 border-dashed border-slate-200 rounded-[2.5rem] text-slate-300 hover:text-brand hover:border-brand transition-all flex flex-col items-center justify-center gap-2 group"
               >
                 <Plus size={40} className="group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-black uppercase tracking-[0.4em]">Append Dynamic SOW Component</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.4em]">Add New Section</span>
               </button>
             )}
           </>
