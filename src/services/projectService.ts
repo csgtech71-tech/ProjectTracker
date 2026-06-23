@@ -128,6 +128,8 @@ export const projectService = {
 
   async update(p: Project): Promise<void> {
     const row = projectToRow(p);
+    console.log(`[update] project="${p.title}" contacts(${p.contacts.length}):`, JSON.stringify(p.contacts.map(c => ({name:c.name, side:c.side}))));
+    console.trace('[update] called from');
     const { error } = await supabase
       .from('projects')
       .update(row)
