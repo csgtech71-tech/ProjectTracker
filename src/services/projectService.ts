@@ -128,10 +128,12 @@ export const projectService = {
       console.warn('projectToRow: unhandled fields dropped:', Object.keys(unknownFields));
     }
     // Insert without chaining select — avoids single() failure if RLS blocks read-back
-    const { error: insertError } = await supabase
+    console.log('[projectService.create] sending insert for id:', p.id, 'row keys:', Object.keys(row));
+    const insertResult = await supabase
       .from('projects')
       .insert({ ...row, created_at: new Date().toISOString() });
-    if (insertError) throw new Error('Insert failed: ' + insertError.message);
+    console.log('[projectService.create] insert result:', JSON.stringify(insertResult));
+    if (insertResult.error) throw new Error('Insert failed: ' + insertResult.error.message + ' | code: ' + insertResult.error.code + ' | details: ' + insertResult.error.details);
 
     // Read back the created row separately
     const { data, error: selectError } = await supabase
