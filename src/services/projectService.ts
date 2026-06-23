@@ -127,12 +127,19 @@ export const projectService = {
     if (Object.keys(unknownFields).length > 0) {
       console.warn('projectToRow: unhandled fields dropped:', Object.keys(unknownFields));
     }
-    const { data, error } = await supabase
+    // Insert without chaining select — avoids single() failure if RLS blocks read-back
+    const { error: insertError } = await supabase
       .from('projects')
-      .insert({ ...row, created_at: new Date().toISOString() })
+      .insert({ ...row, created_at: new Date().toISOString() });
+    if (insertError) throw new Error('Insert failed: ' + insertError.message);
+
+    // Read back the created row separately
+    const { data, error: selectError } = await supabase
+      .from('projects')
       .select('*')
+      .eq('id', p.id)
       .single();
-    if (error) throw new Error(error.message);
+    if (selectError) throw new Error('Read-back failed: ' + selectError.message);
     return rowToProject(data);
   },
 
