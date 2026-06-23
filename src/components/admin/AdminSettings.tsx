@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { GlobalSettings, AppUser, UserRole } from '../../types';
+import type { GlobalSettings, AppUser, UserRole, ReadinessCategory, ReadinessItem } from '../../types';
 import { authService } from '../../services/authService';
 import { supabase } from '../../services/supabaseClient';
+import { DEFAULT_READINESS } from '../project/ProjectReadiness';
 import {
   Building, Users, Check, RefreshCw, ImageIcon, Trash2,
   UserPlus, Edit2, X, ShieldCheck, Save, Mail, Info,
+  ClipboardList, Plus, ChevronDown, ChevronUp,
 } from 'lucide-react';
 
 interface Props {
@@ -48,6 +50,16 @@ export const AdminSettings: React.FC<Props> = ({
   const [saveOk, setSaveOk] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Readiness template editor state
+  const [readinessTemplate, setReadinessTemplate] = useState<ReadinessCategory[]>(
+    settings.defaultReadinessCategories && settings.defaultReadinessCategories.length > 0
+      ? settings.defaultReadinessCategories
+      : DEFAULT_READINESS
+  );
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userError, setUserError] = useState('');
@@ -63,6 +75,9 @@ export const AdminSettings: React.FC<Props> = ({
   useEffect(() => {
     if (!isSaving) {
       setLocal({ ...settings });
+      if (settings.defaultReadinessCategories && settings.defaultReadinessCategories.length > 0) {
+        setReadinessTemplate(settings.defaultReadinessCategories);
+      }
     }
     settingsRef.current = settings;
   }, [settings]);
@@ -94,7 +109,7 @@ export const AdminSettings: React.FC<Props> = ({
     setIsSaving(true);
     setSaveOk(false);
     try {
-      await onUpdateSettings(local);
+      await onUpdateSettings({ ...local, defaultReadinessCategories: readinessTemplate });
       setSaveOk(true);
     } catch (e) {
       console.error('Settings save failed:', e);
@@ -242,6 +257,49 @@ export const AdminSettings: React.FC<Props> = ({
     } catch (e) {
       setUserError(e instanceof Error ? e.message : 'Delete failed.');
     }
+  };
+
+  // Readiness template helpers
+  const handleAddReadinessCategory = () => {
+    const newCat: ReadinessCategory = { id: crypto.randomUUID(), name: 'New Category', items: [] };
+    const updated = [...readinessTemplate, newCat];
+    setReadinessTemplate(updated);
+    setExpandedCats(prev => new Set([...prev, newCat.id]));
+    setEditingCatId(newCat.id);
+  };
+
+  const handleRemoveReadinessCategory = (catId: string) => {
+    if (!confirm('Remove this category from the global template?')) return;
+    setReadinessTemplate(prev => prev.filter(c => c.id !== catId));
+  };
+
+  const handleUpdateCategoryName = (catId: string, name: string) => {
+    setReadinessTemplate(prev => prev.map(c => c.id === catId ? { ...c, name } : c));
+  };
+
+  const handleAddReadinessItem = (catId: string) => {
+    const newItem: ReadinessItem = { id: crypto.randomUUID(), task: 'New checklist item', isComplete: false, type: 'checkbox' };
+    setReadinessTemplate(prev => prev.map(c => c.id === catId ? { ...c, items: [...c.items, newItem] } : c));
+    setEditingItemId(newItem.id);
+  };
+
+  const handleRemoveReadinessItem = (catId: string, itemId: string) => {
+    setReadinessTemplate(prev => prev.map(c => c.id === catId ? { ...c, items: c.items.filter(i => i.id !== itemId) } : c));
+  };
+
+  const handleUpdateItemTask = (catId: string, itemId: string, task: string) => {
+    setReadinessTemplate(prev => prev.map(c => c.id === catId
+      ? { ...c, items: c.items.map(i => i.id === itemId ? { ...i, task } : i) }
+      : c
+    ));
+  };
+
+  const toggleCatExpanded = (catId: string) => {
+    setExpandedCats(prev => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId); else next.add(catId);
+      return next;
+    });
   };
 
   const modalTitle = modal.mode === 'invite' ? 'Invite User' : modal.mode === 'add' ? 'Add User' : `Edit — ${modal.username}`;
