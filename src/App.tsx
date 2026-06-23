@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Project, Tab, GlobalSettings, DeploymentType, AppUser } from './types';
 import { useAuth } from './hooks/useAuth';
 import { projectService, settingsService } from './services/projectService';
@@ -70,8 +70,15 @@ export default function App() {
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
+  const hasLoadedRef = useRef(false);
+
+  // Reset load guard when user logs out so next login reloads fresh data
+  useEffect(() => { if (!user) hasLoadedRef.current = false; }, [user]);
+
   useEffect(() => {
-    if (!user) return;
+    // Only load once when user first logs in — ignore token refreshes
+    if (!user || hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
     setIsDataLoading(true);
     Promise.all([projectService.list(), settingsService.load(), authService.listAppUsers()])
       .then(([projs, settings, users]) => {
