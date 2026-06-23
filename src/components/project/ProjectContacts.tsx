@@ -1,14 +1,15 @@
 
 import React, { useState, useRef } from 'react';
-import { Project, Contact } from '../../types';
+import { Project, Contact, AppUser } from '../../types';
 import { Plus, User, Mail, Phone, MapPin, Building, Info, Trash2, Edit3, X, Users, Upload, Download, FileSpreadsheet, Check } from 'lucide-react';
 
 interface Props {
   project: Project;
   onUpdate: (updated: Project) => void;
+  appUsers?: AppUser[];
 }
 
-export const ProjectContacts: React.FC<Props> = ({ project, onUpdate }) => {
+export const ProjectContacts: React.FC<Props> = ({ project, onUpdate, appUsers = [] }) => {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -24,6 +25,28 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate }) => {
     address: '',
     notes: ''
   });
+
+  // Sync internal contacts from app users — add any system user not already present
+  const handleSyncInternalFromUsers = () => {
+    const existingEmails = new Set(
+      project.contacts.filter(c => c.side === 'internal').map(c => c.email?.toLowerCase()).filter(Boolean)
+    );
+    const toAdd: Contact[] = appUsers
+      .filter(u => !existingEmails.has(u.email?.toLowerCase()))
+      .map(u => ({
+        id: crypto.randomUUID(),
+        side: 'internal' as const,
+        name: u.username,
+        role: u.role === 'admin' ? 'Admin' : 'Team Member',
+        email: u.email || '',
+        phone: u.phone || '',
+        location: '',
+        address: '',
+        notes: '',
+      }));
+    if (toAdd.length === 0) return;
+    onUpdate({ ...project, contacts: [...project.contacts, ...toAdd] });
+  };
 
   const handleOpenAdd = (side: 'customer' | 'internal') => {
     setEditingId(null);
@@ -118,9 +141,16 @@ export const ProjectContacts: React.FC<Props> = ({ project, onUpdate }) => {
       <div className="space-y-5">
         <div className="flex justify-between items-center px-4 bg-black/5 py-3 rounded-xl border border-black/5">
           <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{title}</h3>
-          <button onClick={() => handleOpenAdd(side)} className="flex items-center gap-2 text-[10px] font-black text-brand uppercase tracking-widest hover:text-brand-dark transition-colors">
-            <Plus size={14} /> Add Stakeholder
-          </button>
+          <div className="flex items-center gap-3">
+            {side === 'internal' && appUsers.length > 0 && (
+              <button onClick={handleSyncInternalFromUsers} className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">
+                <Users size={14} /> Sync Users
+              </button>
+            )}
+            <button onClick={() => handleOpenAdd(side)} className="flex items-center gap-2 text-[10px] font-black text-brand uppercase tracking-widest hover:text-brand-dark transition-colors">
+              <Plus size={14} /> Add Stakeholder
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-5">
           {contacts.length === 0 && (
