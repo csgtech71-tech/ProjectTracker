@@ -114,34 +114,15 @@ export const projectService = {
 
   async create(p: Project): Promise<Project> {
     const row = projectToRow(p);
-    // Log any fields not handled by projectToRow (they were in ...rest and are dropped)
-    const { id: _id, title: _t, customerName: _cn, projectOverview: _po, deploymentType: _dt,
-      startDate: _sd, endDate: _ed, revision: _r, isClosed: _ic, isArchived: _ia, isExtended: _ie,
-      extensionReason: _er, extendedEndDate: _eed, customerSentiment: _cs, sowCost: _sc,
-      costingCurrency: _cc, logoBase64: _lb, aiAnalysisSummary: _as,
-      locations: _loc, revisions: _rev, customerSuccessCriteria: _csc, ourSuccessCriteria: _osc,
-      accomplishments: _acc, milestones: _mil, contacts: _con, surveyQuestions: _sq,
-      costingItems: _ci, sowTOC: _st, sowSections: _ss, hardwareNodes: _hn,
-      readinessCategories: _rc, customerSignature: _csig, ourSignature: _os, sowMeta: _sm,
-      created_at: _cat, updated_at: _uat, ...unknownFields } = p;
-    if (Object.keys(unknownFields).length > 0) {
-      console.warn('projectToRow: unhandled fields dropped:', Object.keys(unknownFields));
-    }
-    // Insert without chaining select — avoids single() failure if RLS blocks read-back
-    console.log('[projectService.create] sending insert for id:', p.id, 'row keys:', Object.keys(row));
-    const insertResult = await supabase
+    // Use select() chained to insert so Supabase returns the row in a single
+    // round-trip. This avoids a second query that can fail when RLS SELECT
+    // policies are stricter than INSERT policies.
+    const { data, error } = await supabase
       .from('projects')
-      .insert({ ...row, created_at: new Date().toISOString() });
-    console.log('[projectService.create] insert result:', JSON.stringify(insertResult));
-    if (insertResult.error) throw new Error('Insert failed: ' + insertResult.error.message + ' | code: ' + insertResult.error.code + ' | details: ' + insertResult.error.details);
-
-    // Read back the created row separately
-    const { data, error: selectError } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', p.id)
+      .insert({ ...row, created_at: new Date().toISOString() })
+      .select()
       .single();
-    if (selectError) throw new Error('Read-back failed: ' + selectError.message);
+    if (error) throw new Error('Insert failed: ' + error.message + ' | code: ' + error.code);
     return rowToProject(data);
   },
 
