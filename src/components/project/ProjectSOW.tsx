@@ -322,24 +322,15 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             </section>
           </div>
 
-          {/* Dynamic SOW Sections — all content editable in-app */}
-          ${sections.map(section => `
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                <h3 class="text-3xl font-black uppercase tracking-tighter">${section.title}</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                ${section.content.split('\n').map(line => {
-                  if (line.startsWith('## ')) return \`<h4 class="text-lg font-black uppercase tracking-tighter mb-2 mt-6">\${line.slice(3)}</h4>\`;
-                  if (line.startsWith('- ') || line.startsWith('* ')) return \`<li class="ml-4">\${line.slice(2)}</li>\`;
-                  if (line.trim() === '') return '';
-                  return \`<p class="mb-3">\${line}</p>\`;
-                }).join('')}
-              </div>
-            </section>
-          </div>
-          `).join('')}
+          ${sections.map(s => {
+            const body = s.content.split('\n').map(line => {
+              if (line.startsWith('## ')) return '<h4 class="text-lg font-black uppercase tracking-tighter mb-2 mt-6">' + line.slice(3) + '</h4>';
+              if (line.startsWith('- ') || line.startsWith('* ')) return '<li class="ml-4">' + line.slice(2) + '</li>';
+              if (line.trim() === '') return '';
+              return '<p class="mb-3">' + line + '</p>';
+            }).join('');
+            return '<div class="sow-print-page bg-white space-y-12"><section class="space-y-8"><div class="red-bar"><h3 class="text-3xl font-black uppercase tracking-tighter">' + s.title + '</h3></div><div class="text-lg leading-relaxed text-slate-800">' + body + '</div></section></div>';
+          }).join('')}
 
           <!-- DEPLOYMENT LOCATIONS -->
           <div class="sow-print-page bg-white space-y-12">
