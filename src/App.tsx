@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
 };
 
 export default function App() {
-  const { user, loading: authLoading, authError } = useAuth();
+  const { user, loading: authLoading, authError, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -324,7 +324,7 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => authService.signOut()}
+            onClick={signOut}
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-500/10 w-full text-slate-600 hover:text-red-500 transition-all"
           >
             <LogOut size={18} />
