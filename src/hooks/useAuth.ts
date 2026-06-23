@@ -18,24 +18,28 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
+    // Track in-flight fetchAppUser calls so concurrent events don't race
+    let inflightRequest = 0;
 
-    // onAuthStateChange is the single source of truth.
-    // INITIAL_SESSION fires on mount with the existing session (or null),
-    // so we no longer need a separate getSession() call.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
 
-        if (event === 'SIGNED_OUT' || !session) {
+        // No session — clear user and stop loading
+        if (!session) {
           setUser(null);
           setAuthError(null);
           setLoading(false);
           return;
         }
 
-        // Handles INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED, USER_UPDATED
+        // Has session — fetch the app user profile
+        // Use a counter to discard stale concurrent fetches
+        const thisRequest = ++inflightRequest;
         const appUser = await fetchAppUser();
-        if (!mounted) return;
+
+        if (!mounted || thisRequest !== inflightRequest) return;
+
         if (appUser) {
           setAuthError(null);
           setUser(appUser);
@@ -54,5 +58,18 @@ export function useAuth() {
     };
   }, []);
 
-  return { user, loading, authError, isAdmin: user?.role === 'admin' };
+  // Wrap signOut so the button can just call it safely
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Sign out failed:', e);
+      // Force local state clear even if supabase call fails
+      setUser(null);
+      setAuthError(null);
+      setLoading(false);
+    }
+  };
+
+  return { user, loading, authError, isAdmin: user?.role === 'admin', signOut };
 }
