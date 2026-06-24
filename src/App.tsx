@@ -165,6 +165,7 @@ setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       isExtended: false,
       surveyQuestions: [],
       sowCost: newProject.sowCost,
+      sowSections: globalSettings.globalSowSections?.length ? globalSettings.globalSowSections : undefined,
       hardwareNodes: [],
       customerSentiment: 'happy',
     };
