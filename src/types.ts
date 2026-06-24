@@ -283,6 +283,7 @@ export interface Project {
   extendedEndDate?: string;
   customerSignature?: string;
   ourSignature?: string;
+  contactSignatures?: Record<string, string>; // contactId -> base64 signature
   surveyQuestions: SurveyQuestion[];
   sowCost?: number;
   costingItems?: CostingItem[];
