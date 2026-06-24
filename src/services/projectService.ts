@@ -195,6 +195,7 @@ export const settingsService = {
       sidebarIconBase64: data.sidebar_icon_base64,
       companyLogoBase64: data.company_logo_base64,
       defaultReadinessCategories: data.readiness_template && data.readiness_template.length > 0 ? data.readiness_template : undefined,
+      globalSowSections: data.sow_sections_template && data.sow_sections_template.length > 0 ? data.sow_sections_template : undefined,
     };
   },
 
@@ -210,6 +211,7 @@ export const settingsService = {
       sidebar_icon_base64: s.sidebarIconBase64,
       company_logo_base64: s.companyLogoBase64,
       readiness_template: s.defaultReadinessCategories ?? [],
+      sow_sections_template: s.globalSowSections ?? [],
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error(error.message);
