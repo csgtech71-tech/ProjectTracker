@@ -22,7 +22,7 @@ interface Props {
 
 // ─── Default template sections — all editable ─────────────────────────────────
 // These load on first open. Titles and content are fully editable in the app.
-// "Pilot" language can be changed to "Project" or anything else per engagement.
+// Section titles and content are fully editable per engagement.
 const DEFAULT_SOW_SECTIONS = (customerName: string): SowSection[] => [
   {
     id: 'sow-1-1',
@@ -82,7 +82,7 @@ const DEFAULT_SOW_SECTIONS = (customerName: string): SowSection[] => [
   },
   {
     id: 'sow-1-6',
-    title: '1.6 Success Criteria (Customer)',
+    title: '1.6 Project Success Criteria (Customer)',
     content: `## 1. Security & Compliance
 Safe maintains secure, locked storage with no unauthorized access or tampering events. Access controls (keypad, badge, biometric, code) function consistently. Audit logs or access attempt records are accessible and easy to read. Records meet DEA and state storage requirements. Remote accessibility and oversight is available.
 
@@ -154,7 +154,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       : DEFAULT_SOW_SECTIONS(project.customerName)
   );
   const [isEditing, setIsEditing] = useState(false);
-  const [isPreview, setIsPreview] = useState(true); // Default to preview mode for a "document" feel
+  const [isPreview, setIsPreview] = useState(false); // Default to editor mode so users can work
   const docRef = useRef<HTMLDivElement>(null);
 
   // Generate TOC based on original design
@@ -169,9 +169,9 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       { id: 'monitoring', title: 'Monitoring and Controlling', page: 7 },
       { id: 'activation', title: '1.4 Remote Activation', page: 8 },
       { id: 'training', title: '1.5 Training of personnel', page: 9 },
-      { id: 'success', title: '1.6 Pilot Success Criteria (Customer)', page: 10 },
-      { id: 'starts', title: '1.7 Pilot Starts', page: 11 },
-      { id: 'conclusion', title: '1.8 Pilot Conclusion', page: 12 },
+      { id: 'success', title: '1.6 Project Success Criteria (Customer)', page: 10 },
+      { id: 'starts', title: '1.7 Project Starts', page: 11 },
+      { id: 'conclusion', title: '1.8 Project Conclusion', page: 12 },
       { id: 'closing', title: 'Closing and Documentation', page: 13 },
       { id: 'communication', title: 'Communication Management', page: 14 },
       { id: 'responsibilities', title: '2.0 Customer Responsibilities', page: 15 },
@@ -596,7 +596,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
         </div>
         <div className="flex gap-3">
           <button onClick={() => setIsPreview(!isPreview)} className={`px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 ${isPreview ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-            {isPreview ? <><Edit3 size={16} /> Editor Mode</> : <><Eye size={16} /> Preview Mode</>}
+            {isPreview ? <><Edit3 size={16} /> Edit Mode</> : <><Eye size={16} /> Preview</> }
           </button>
           <button onClick={handleDownloadPDF} className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2">
             <Download size={16} /> Download PDF
@@ -604,14 +604,16 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
           <button onClick={handlePrint} className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center gap-2">
             <Printer size={16} /> Print SOW
           </button>
-          {isEditing ? (
-            <button onClick={handleSave} className="px-8 py-2.5 bg-black text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-brand transition-all flex items-center gap-2 shadow-xl shadow-black/10">
-              <Save size={16} /> Save SOW
-            </button>
-          ) : (
-            <button onClick={() => setIsEditing(true)} className="px-8 py-2.5 bg-brand text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-brand-dark transition-all flex items-center gap-2 shadow-xl shadow-brand/10">
-              <Edit3 size={16} /> Edit SOW
-            </button>
+          {!isPreview && (
+            isEditing ? (
+              <button onClick={handleSave} className="px-8 py-2.5 bg-black text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-brand transition-all flex items-center gap-2 shadow-xl shadow-black/10">
+                <Save size={16} /> Save SOW
+              </button>
+            ) : (
+              <button onClick={() => setIsEditing(true)} className="px-8 py-2.5 bg-brand text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-brand-dark transition-all flex items-center gap-2 shadow-xl shadow-brand/10">
+                <Edit3 size={16} /> Edit Sections
+              </button>
+            )
           )}
         </div>
       </div>
