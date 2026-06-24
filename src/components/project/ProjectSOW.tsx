@@ -154,6 +154,25 @@ Purchase, installation, and maintenance costs meet expectations. The device show
   },
 ];
 
+// Strip HTML tags to plain text for jsPDF rendering
+function stripHtmlForPdf(html: string): string {
+  return html
+    .replace(/<h[1-3][^>]*>/gi, '\n\n')
+    .replace(/<\/h[1-3]>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '\n\u2022 ')
+    .replace(/<\/li>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<p[^>]*>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalSettings, globalSettings }) => {
   // Local state for SOW sections, initialized from project or global defaults
   // Load saved sections, or fall back to global defaults, or generate from template
@@ -517,33 +536,6 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     // All sections rendered from editable sections state (including Purpose)
     // Strip HTML tags for jsPDF plain text rendering
     // For full formatting fidelity, use Print SOW (browser print-to-PDF)
-    const stripHtml = (html: string) => {
-      return html
-        .replace(/<h[1-3][^>]*>/gi, '
-
-')
-        .replace(/<\/h[1-3]>/gi, '
-')
-        .replace(/<li[^>]*>/gi, '
-• ')
-        .replace(/<\/li>/gi, '')
-        .replace(/<br\s*\/?>/gi, '
-')
-        .replace(/<p[^>]*>/gi, '
-')
-        .replace(/<\/p>/gi, '
-')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/
-{3,}/g, '
-
-')
-        .trim();
-    };
 
     sections.forEach(section => {
       doc.addPage();
@@ -552,7 +544,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
       let sectionY = 45;
-      const plainText = stripHtml(section.content);
+      const plainText = stripHtmlForPdf(section.content);
       const lines = plainText.split('
 ');
       lines.forEach(line => {
