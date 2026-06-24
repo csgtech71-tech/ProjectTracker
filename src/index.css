@@ -56,3 +56,28 @@ body {
 .zoom-in-95 { animation-name: zoomIn; }
 .duration-300 { animation-duration: 300ms; }
 .duration-500 { animation-duration: 500ms; }
+
+/* TipTap / ProseMirror editor styles */
+.ProseMirror {
+  min-height: 200px;
+  outline: none;
+}
+.ProseMirror p { margin: 0.4em 0; }
+.ProseMirror h1 { font-size: 1.8em; font-weight: 900; margin: 0.5em 0; text-transform: uppercase; letter-spacing: -0.02em; }
+.ProseMirror h2 { font-size: 1.4em; font-weight: 900; margin: 0.5em 0; text-transform: uppercase; letter-spacing: -0.01em; }
+.ProseMirror h3 { font-size: 1.1em; font-weight: 700; margin: 0.5em 0; }
+.ProseMirror ul { list-style-type: disc; padding-left: 1.5em; margin: 0.5em 0; }
+.ProseMirror ol { list-style-type: decimal; padding-left: 1.5em; margin: 0.5em 0; }
+.ProseMirror li { margin: 0.2em 0; }
+.ProseMirror strong { font-weight: 700; }
+.ProseMirror em { font-style: italic; }
+.ProseMirror u { text-decoration: underline; }
+.ProseMirror blockquote { border-left: 4px solid #d12913; padding-left: 1em; color: #64748b; margin: 0.75em 0; }
+.ProseMirror hr { border: none; border-top: 2px solid #e2e8f0; margin: 1em 0; }
+.ProseMirror p.is-editor-empty:first-child::before {
+  color: #94a3b8;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
