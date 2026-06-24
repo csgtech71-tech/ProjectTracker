@@ -545,8 +545,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       doc.setTextColor(0, 0, 0);
       let sectionY = 45;
       const plainText = stripHtmlForPdf(section.content);
-      const lines = plainText.split('
-');
+      const lines = plainText.split('\n');
       lines.forEach(line => {
         if (!line.trim()) { sectionY += 4; return; }
         if (line.startsWith('• ')) {
