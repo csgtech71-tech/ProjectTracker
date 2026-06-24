@@ -45,6 +45,7 @@ function rowToProject(row: Record<string, unknown>): Project {
     sowMeta: data.sowMeta as Project['sowMeta'] | undefined,
     customerSignature: data.customerSignature as string | undefined,
     ourSignature: data.ourSignature as string | undefined,
+    contactSignatures: data.contactSignatures as Record<string, string> | undefined,
   };
 }
 
@@ -90,7 +91,7 @@ function projectToRow(p: Project) {
       customerContacts: contacts.filter(c => c.side === 'customer'),
       surveyQuestions,
       costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-      customerSignature, ourSignature, sowMeta,
+      customerSignature, ourSignature, sowMeta, contactSignatures,
     },
   };
 }
