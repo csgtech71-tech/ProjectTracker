@@ -1,7 +1,7 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Project, GlobalSettings, SowSection } from '../../types';
-import { FileText, Save, Printer, Plus, Trash2, Edit3, X, GripVertical, Eye, Download, List, Target, Calendar, Users, Calculator, CheckCircle, RotateCcw } from 'lucide-react';
+import { FileText, Save, Printer, Plus, Trash2, Edit3, X, GripVertical, Eye, Download, List, Target, Calendar, Users, Calculator, CheckCircle, RotateCcw, PenLine, Eraser } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -156,6 +156,85 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
   const [isEditing, setIsEditing] = useState(false);
   const [isPreview, setIsPreview] = useState(false); // Default to editor mode so users can work
   const docRef = useRef<HTMLDivElement>(null);
+
+  // Signature capture
+  const customerCanvasRef = useRef<HTMLCanvasElement>(null);
+  const internalCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [customerSigning, setCustomerSigning] = useState(false);
+  const [internalSigning, setInternalSigning] = useState(false);
+  const [customerSigned, setCustomerSigned] = useState(!!project.customerSignature);
+  const [internalSigned, setInternalSigned] = useState(!!project.ourSignature);
+
+  useEffect(() => {
+    if (project.customerSignature && customerCanvasRef.current) {
+      const img = new Image();
+      img.onload = () => customerCanvasRef.current?.getContext('2d')?.drawImage(img, 0, 0);
+      img.src = project.customerSignature;
+    }
+    if (project.ourSignature && internalCanvasRef.current) {
+      const img = new Image();
+      img.onload = () => internalCanvasRef.current?.getContext('2d')?.drawImage(img, 0, 0);
+      img.src = project.ourSignature;
+    }
+  }, []);
+
+  const startDrawing = (canvasRef: React.RefObject<HTMLCanvasElement>, setDrawing: (v: boolean) => void) =>
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      setDrawing(true);
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.beginPath();
+      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    };
+
+  const draw = (canvasRef: React.RefObject<HTMLCanvasElement>, isDrawing: boolean) =>
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!isDrawing) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+      ctx.stroke();
+    };
+
+  const stopDrawing = (canvasRef: React.RefObject<HTMLCanvasElement>, setDrawing: (v: boolean) => void, side: 'customer' | 'internal') =>
+    () => {
+      setDrawing(false);
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const sig = canvas.toDataURL();
+      if (side === 'customer') {
+        setCustomerSigned(true);
+        onUpdate({ ...project, customerSignature: sig });
+      } else {
+        setInternalSigned(true);
+        onUpdate({ ...project, ourSignature: sig });
+      }
+    };
+
+  const clearSignature = (canvasRef: React.RefObject<HTMLCanvasElement>, side: 'customer' | 'internal') => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
+    if (side === 'customer') {
+      setCustomerSigned(false);
+      onUpdate({ ...project, customerSignature: undefined });
+    } else {
+      setInternalSigned(false);
+      onUpdate({ ...project, ourSignature: undefined });
+    }
+  };
+
+  const primaryCustomer = project.contacts.find(c => c.side === 'customer') || null;
+  const primaryInternal = project.contacts.find(c => c.side === 'internal') || null;
 
   // Generate TOC based on original design
   const toc = useMemo(() => {
@@ -719,58 +798,156 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               </div>
             </div>
 
-            {/* Authorization Preview */}
+            {/* Authorization — Signature Capture */}
             <div className="p-20 border-t border-slate-100 bg-white space-y-12">
               <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
                 <h3 className="text-3xl font-black uppercase tracking-tighter">Authorization</h3>
               </div>
               <p className="text-lg text-slate-700 leading-relaxed">By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of {new Date().toLocaleDateString()}.</p>
-              <div className="grid grid-cols-2 gap-20 pt-20">
-                <div className="space-y-12">
-                  <div className="border-b-2 border-slate-200 w-full h-24"></div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Authorization</p>
-                    <p className="text-sm font-black uppercase text-slate-900">{project.customerName}</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
+                {/* Customer Signature */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#d12913]">Customer Authorization</p>
+                      {primaryCustomer ? (
+                        <div className="mt-1">
+                          <p className="text-sm font-black text-slate-900 uppercase">{primaryCustomer.name}</p>
+                          <p className="text-xs text-slate-400 font-bold">{primaryCustomer.role}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic mt-1">No customer stakeholder assigned</p>
+                      )}
+                    </div>
+                    {customerSigned && (
+                      <button onClick={() => clearSignature(customerCanvasRef, 'customer')} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-300 hover:text-red-400 transition-colors">
+                        <Eraser size={12} /> Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className={`relative border-2 rounded-2xl overflow-hidden transition-all ${customerSigning ? 'border-brand shadow-lg shadow-brand/10' : customerSigned ? 'border-emerald-200 bg-slate-50' : 'border-slate-200 border-dashed bg-slate-50'}`}>
+                    <canvas
+                      ref={customerCanvasRef}
+                      width={500}
+                      height={160}
+                      className="w-full h-40 cursor-crosshair touch-none"
+                      onMouseDown={startDrawing(customerCanvasRef, setCustomerSigning)}
+                      onMouseMove={draw(customerCanvasRef, customerSigning)}
+                      onMouseUp={stopDrawing(customerCanvasRef, setCustomerSigning, 'customer')}
+                      onMouseLeave={stopDrawing(customerCanvasRef, setCustomerSigning, 'customer')}
+                    />
+                    {!customerSigned && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="flex items-center gap-2 text-slate-300">
+                          <PenLine size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Sign here</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="border-t-2 border-slate-900 pt-2">
+                    <p className="text-[10px] font-bold text-slate-500">{primaryCustomer?.name || 'Customer Representative'} — {project.customerName}</p>
                   </div>
                 </div>
-                <div className="space-y-12">
-                  <div className="border-b-2 border-slate-200 w-full h-24"></div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Authorization</p>
-                    <p className="text-sm font-black uppercase text-slate-900">{globalSettings.companyName || 'MedixSafe'}</p>
+
+                {/* Internal Signature */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#d12913]">{globalSettings.companyName || 'MedixSafe'} Authorization</p>
+                      {primaryInternal ? (
+                        <div className="mt-1">
+                          <p className="text-sm font-black text-slate-900 uppercase">{primaryInternal.name}</p>
+                          <p className="text-xs text-slate-400 font-bold">{primaryInternal.role}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic mt-1">No internal stakeholder assigned</p>
+                      )}
+                    </div>
+                    {internalSigned && (
+                      <button onClick={() => clearSignature(internalCanvasRef, 'internal')} className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-slate-300 hover:text-red-400 transition-colors">
+                        <Eraser size={12} /> Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className={`relative border-2 rounded-2xl overflow-hidden transition-all ${internalSigning ? 'border-brand shadow-lg shadow-brand/10' : internalSigned ? 'border-emerald-200 bg-slate-50' : 'border-slate-200 border-dashed bg-slate-50'}`}>
+                    <canvas
+                      ref={internalCanvasRef}
+                      width={500}
+                      height={160}
+                      className="w-full h-40 cursor-crosshair touch-none"
+                      onMouseDown={startDrawing(internalCanvasRef, setInternalSigning)}
+                      onMouseMove={draw(internalCanvasRef, internalSigning)}
+                      onMouseUp={stopDrawing(internalCanvasRef, setInternalSigning, 'internal')}
+                      onMouseLeave={stopDrawing(internalCanvasRef, setInternalSigning, 'internal')}
+                    />
+                    {!internalSigned && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="flex items-center gap-2 text-slate-300">
+                          <PenLine size={18} />
+                          <span className="text-[10px] font-black uppercase tracking-widest">Sign here</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="border-t-2 border-slate-900 pt-2">
+                    <p className="text-[10px] font-bold text-slate-500">{primaryInternal?.name || 'Authorized Representative'} — {globalSettings.companyName || 'MedixSafe'}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Key Stakeholders Preview */}
+            {/* Key Stakeholders — Two Column List */}
             <div className="p-20 bg-white border-t border-slate-100 space-y-12">
               <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
                 <h3 className="text-3xl font-black uppercase tracking-tighter">Key Stakeholders</h3>
               </div>
-              
-              <div className="space-y-12">
+              <div className="grid grid-cols-2 gap-16">
+                {/* Internal — Left */}
                 <div className="space-y-6">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-[#d12913]">Client Operations</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {project.contacts.filter(c => c.side === 'customer').map(c => (
-                      <div key={c.id} className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                        <p className="text-lg font-black text-slate-900 uppercase">{c.name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.role}</p>
-                        <p className="text-xs text-slate-500">{c.email}</p>
+                  <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-900">
+                    <div className="w-2 h-8 bg-[#d12913] rounded-full" />
+                    <p className="text-sm font-black uppercase tracking-widest text-slate-900">{globalSettings.companyName || 'MedixSafe'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    {project.contacts.filter(c => c.side === 'internal').length === 0 ? (
+                      <p className="text-sm text-slate-400 italic">No internal stakeholders assigned</p>
+                    ) : project.contacts.filter(c => c.side === 'internal').map(c => (
+                      <div key={c.id} className="flex items-start gap-4 py-4 border-b border-slate-100 last:border-0">
+                        <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-900 uppercase tracking-tight">{c.name}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.role}</p>
+                          {c.email && <p className="text-xs text-slate-500 mt-0.5">{c.email}</p>}
+                          {c.phone && <p className="text-xs text-slate-400">{c.phone}</p>}
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-
+                {/* Customer — Right */}
                 <div className="space-y-6">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-[#d12913]">MedixSafe Internal Team</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {project.contacts.filter(c => c.side === 'internal').map(c => (
-                      <div key={c.id} className="p-6 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-1">
-                        <p className="text-lg font-black text-slate-900 uppercase">{c.name}</p>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.role}</p>
-                        <p className="text-xs text-slate-500">{c.email}</p>
+                  <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-900">
+                    <div className="w-2 h-8 bg-[#d12913] rounded-full" />
+                    <p className="text-sm font-black uppercase tracking-widest text-slate-900">{project.customerName}</p>
+                  </div>
+                  <div className="space-y-1">
+                    {project.contacts.filter(c => c.side === 'customer').length === 0 ? (
+                      <p className="text-sm text-slate-400 italic">No client stakeholders assigned</p>
+                    ) : project.contacts.filter(c => c.side === 'customer').map(c => (
+                      <div key={c.id} className="flex items-start gap-4 py-4 border-b border-slate-100 last:border-0">
+                        <div className="w-10 h-10 bg-[#d12913] rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-900 uppercase tracking-tight">{c.name}</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.role}</p>
+                          {c.email && <p className="text-xs text-slate-500 mt-0.5">{c.email}</p>}
+                          {c.phone && <p className="text-xs text-slate-400">{c.phone}</p>}
+                        </div>
                       </div>
                     ))}
                   </div>
