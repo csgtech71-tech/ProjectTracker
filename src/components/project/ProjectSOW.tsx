@@ -25,6 +25,16 @@ interface Props {
 // Section titles and content are fully editable per engagement.
 const DEFAULT_SOW_SECTIONS = (customerName: string): SowSection[] => [
   {
+    id: 'sow-1-0',
+    title: '1.0 Purpose',
+    content: `MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for ${customerName}'s Learning Management System (LMS).
+
+a. Safe activation at project location(s)
+b. Training of personnel (administration and end users)
+c. Provide Training collateral
+d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.`,
+  },
+  {
     id: 'sow-1-1',
     title: '1.1 Activity Description',
     content: `MedixSafe will lead the remote activation, configuration and training for the customer. In addition, the MedixSafe team will be responsible for providing training materials for ${customerName}'s LMS.`,
@@ -54,10 +64,10 @@ const DEFAULT_SOW_SECTIONS = (customerName: string): SowSection[] => [
   {
     id: 'sow-executing',
     title: 'Executing',
-    content: `- Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project.
-- Execute plan with internal MedixSafe resources during delivery of items.
-- Providing regular progress updates as needed and working with the Customer team to remove any dependencies.
-- Provide any project plan updates.`,
+    content: `- Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project
+- Execute plan with internal MedixSafe resources during delivery of items as specified in Section 1.1 Activity Description
+- Providing regular progress updates as needed and working with the Customer team to remove any dependencies
+- Provide any project plan updates`,
   },
   {
     id: 'sow-monitoring',
@@ -236,32 +246,22 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
   const primaryCustomer = project.contacts.find(c => c.side === 'customer') || null;
   const primaryInternal = project.contacts.find(c => c.side === 'internal') || null;
 
-  // Generate TOC based on original design
+  // TOC generated dynamically from editable sections + fixed closing pages
   const toc = useMemo(() => {
+    const sectionEntries = sections.map((s, i) => ({
+      id: s.id,
+      title: s.title,
+      page: i + 1,
+    }));
+    const offset = sections.length + 1;
     return [
-      { id: 'purpose', title: '1.0 Purpose', page: 1 },
-      { id: 'activity', title: '1.1 Activity Description', page: 2 },
-      { id: 'exclusions', title: '1.2 Service Exclusions', page: 3 },
-      { id: 'professional', title: '1.3 Professional Services', page: 4 },
-      { id: 'planning', title: 'Planning', page: 5 },
-      { id: 'executing', title: 'Executing', page: 6 },
-      { id: 'monitoring', title: 'Monitoring and Controlling', page: 7 },
-      { id: 'activation', title: '1.4 Remote Activation', page: 8 },
-      { id: 'training', title: '1.5 Training of personnel', page: 9 },
-      { id: 'success', title: '1.6 Project Success Criteria (Customer)', page: 10 },
-      { id: 'starts', title: '1.7 Project Starts', page: 11 },
-      { id: 'conclusion', title: '1.8 Project Conclusion', page: 12 },
-      { id: 'closing', title: 'Closing and Documentation', page: 13 },
-      { id: 'communication', title: 'Communication Management', page: 14 },
-      { id: 'responsibilities', title: '2.0 Customer Responsibilities', page: 15 },
-      { id: 'risk', title: '3.0 Risk Management', page: 16 },
-      { id: 'scope', title: '3.1 Scope Change Management', page: 17 },
-      { id: 'locations', title: 'Deployment Locations', page: 18 },
-      { id: 'auth', title: 'Authorization', page: 19 },
-      { id: 'stakeholders', title: 'Key Stakeholders', page: 20 },
-      { id: 'roadmap', title: 'Project Roadmap', page: 21 },
+      ...sectionEntries,
+      { id: 'locations', title: 'Deployment Locations', page: offset },
+      { id: 'auth', title: 'Authorization', page: offset + 1 },
+      { id: 'stakeholders', title: 'Key Stakeholders', page: offset + 2 },
+      { id: 'roadmap', title: 'Project Roadmap', page: offset + 3 },
     ];
-  }, []);
+  }, [sections]);
 
   // Persist SOW changes to the project state
   const handleSave = () => {
@@ -379,24 +379,6 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                     <span class="text-sm font-black text-slate-900">${item.page < 10 ? '0' : ''}${item.page}</span>
                   </div>
                 `).join('')}
-              </div>
-            </section>
-          </div>
-
-          <!-- 1.0 PURPOSE -->
-          <div class="sow-print-page bg-white space-y-12">
-            <section class="space-y-8">
-              <div class="red-bar">
-                 <h3 class="text-3xl font-black uppercase tracking-tighter">1.0 Purpose</h3>
-              </div>
-              <div class="text-lg leading-relaxed text-slate-800">
-                <p>MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for ${project.customerName}'s Learning Management System (LMS).</p>
-                <ul class="mt-4 space-y-2 list-none">
-                  <li>a. Safe activation at Durham and Connecticut location(s)</li>
-                  <li>b. Training of personnel (administration and end users)</li>
-                  <li>c. Provide Training collateral</li>
-                  <li>d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.</li>
-                </ul>
               </div>
             </section>
           </div>
@@ -575,20 +557,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       doc.text(title, 25, y);
     };
 
-    // 1.0 Purpose
-    doc.addPage();
-    addSectionHeader('1.0 Purpose');
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    const purposeText = `MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for ${project.customerName}'s Learning Management System (LMS).`;
-    const purposeLines = doc.splitTextToSize(purposeText, 170);
-    doc.text(purposeLines, 20, 45);
-    doc.text('a. Safe activation at Durham and Connecticut location(s)', 25, 70);
-    doc.text('b. Training of personnel (administration and end users)', 25, 77);
-    doc.text('c. Provide Training collateral', 25, 84);
-    doc.text('d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.', 25, 91);
-
-    // Dynamic SOW sections — rendered from editable sections state
+    // All sections rendered from editable sections state (including Purpose)
     sections.forEach(section => {
       doc.addPage();
       addSectionHeader(section.title);
@@ -739,22 +708,6 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                     <span className="text-sm font-black text-slate-900">0{item.page}</span>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* 1.0 Purpose */}
-            <div className="p-20 bg-white space-y-8">
-              <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
-                <h3 className="text-3xl font-black uppercase tracking-tighter">1.0 Purpose</h3>
-              </div>
-              <div className="text-lg leading-relaxed text-slate-700">
-                <p>MedixSafe will complete, with reasonable guidance and support from the Customer project team, the initiatives listed in this SOW. MedixSafe will design, plan, and implement solutions for the defined deliverables. The purpose of this project is to plan and deliver the items defined below as well as make available custom training materials for {project.customerName}'s Learning Management System (LMS).</p>
-                <ul className="mt-4 space-y-2 list-none">
-                  <li>a. Safe activation at Durham and Connecticut location(s)</li>
-                  <li>b. Training of personnel (administration and end users)</li>
-                  <li>c. Provide Training collateral</li>
-                  <li>d. Provide 2 (15 minute) touchpoints per week to cover off questions, feedback, issues, etc.</li>
-                </ul>
               </div>
             </div>
 
