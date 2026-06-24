@@ -158,8 +158,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
   const docRef = useRef<HTMLDivElement>(null);
 
   // Signature capture
-  const customerCanvasRef = useRef<HTMLCanvasElement>(null);
-  const internalCanvasRef = useRef<HTMLCanvasElement>(null);
+  const customerCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const internalCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [customerSigning, setCustomerSigning] = useState(false);
   const [internalSigning, setInternalSigning] = useState(false);
   const [customerSigned, setCustomerSigned] = useState(!!project.customerSignature);
@@ -178,7 +178,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     }
   }, []);
 
-  const startDrawing = (canvasRef: React.RefObject<HTMLCanvasElement>, setDrawing: (v: boolean) => void) =>
+  const startDrawing = (canvasRef: React.RefObject<HTMLCanvasElement | null>, setDrawing: (v: boolean) => void) =>
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       setDrawing(true);
       const canvas = canvasRef.current;
@@ -190,7 +190,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
     };
 
-  const draw = (canvasRef: React.RefObject<HTMLCanvasElement>, isDrawing: boolean) =>
+  const draw = (canvasRef: React.RefObject<HTMLCanvasElement | null>, isDrawing: boolean) =>
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!isDrawing) return;
       const canvas = canvasRef.current;
@@ -205,7 +205,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       ctx.stroke();
     };
 
-  const stopDrawing = (canvasRef: React.RefObject<HTMLCanvasElement>, setDrawing: (v: boolean) => void, side: 'customer' | 'internal') =>
+  const stopDrawing = (canvasRef: React.RefObject<HTMLCanvasElement | null>, setDrawing: (v: boolean) => void, side: 'customer' | 'internal') =>
     () => {
       setDrawing(false);
       const canvas = canvasRef.current;
@@ -220,7 +220,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       }
     };
 
-  const clearSignature = (canvasRef: React.RefObject<HTMLCanvasElement>, side: 'customer' | 'internal') => {
+  const clearSignature = (canvasRef: React.RefObject<HTMLCanvasElement | null>, side: 'customer' | 'internal') => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
