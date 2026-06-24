@@ -5,6 +5,7 @@ import { FileText, Save, Printer, Plus, Trash2, Edit3, X, GripVertical, Eye, Dow
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { RichTextEditor, markdownToHtml } from '../shared/RichTextEditor';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -156,12 +157,17 @@ Purchase, installation, and maintenance costs meet expectations. The device show
 export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalSettings, globalSettings }) => {
   // Local state for SOW sections, initialized from project or global defaults
   // Load saved sections, or fall back to global defaults, or generate from template
-  const [sections, setSections] = useState<SowSection[]>(
-    project.sowSections?.length
-      ? project.sowSections
-      : globalSettings.globalSowSections?.length
-      ? globalSettings.globalSowSections
-      : DEFAULT_SOW_SECTIONS(project.customerName)
+  const normalizeSections = (raw: SowSection[]): SowSection[] =>
+    raw.map(s => ({ ...s, content: markdownToHtml(s.content) }));
+
+  const [sections, setSections] = useState<SowSection[]>(() =>
+    normalizeSections(
+      project.sowSections?.length
+        ? project.sowSections
+        : globalSettings.globalSowSections?.length
+        ? globalSettings.globalSowSections
+        : DEFAULT_SOW_SECTIONS(project.customerName)
+    )
   );
   const [isEditing, setIsEditing] = useState(false);
   const [isPreview, setIsPreview] = useState(false); // Default to editor mode so users can work
@@ -329,6 +335,17 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               .text-brand { color: #d12913 !important; }
             }
             body { font-family: 'Inter', sans-serif; line-height: 1.6; }
+            .prose h1 { font-size: 2em; font-weight: 900; margin: 0.5em 0; }
+            .prose h2 { font-size: 1.5em; font-weight: 900; margin: 0.75em 0; text-transform: uppercase; letter-spacing: 0.05em; }
+            .prose h3 { font-size: 1.2em; font-weight: 700; margin: 0.75em 0; }
+            .prose ul { list-style-type: disc; margin-left: 1.5em; margin-top: 0.5em; margin-bottom: 0.5em; }
+            .prose ol { list-style-type: decimal; margin-left: 1.5em; margin-top: 0.5em; margin-bottom: 0.5em; }
+            .prose li { margin: 0.25em 0; }
+            .prose p { margin: 0.5em 0; }
+            .prose strong { font-weight: 700; }
+            .prose em { font-style: italic; }
+            .prose blockquote { border-left: 4px solid #d12913; padding-left: 1em; color: #64748b; margin: 1em 0; }
+            .prose hr { border: none; border-top: 2px solid #e2e8f0; margin: 1.5em 0; }
             table { width: 100%; border-collapse: collapse; margin: 15px 0; }
             th, td { border: 1px solid #cbd5e1; padding: 12px; font-size: 13px; }
             th { background-color: #f8fafc; font-weight: 900; text-align: left; color: #d12913; text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em; }
@@ -385,15 +402,9 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             </section>
           </div>
 
-          ${sections.map(s => {
-            const body = s.content.split('\n').map(line => {
-              if (line.startsWith('## ')) return '<h4 class="text-lg font-black uppercase tracking-tighter mb-2 mt-6">' + line.slice(3) + '</h4>';
-              if (line.startsWith('- ') || line.startsWith('* ')) return '<li class="ml-4">' + line.slice(2) + '</li>';
-              if (line.trim() === '') return '';
-              return '<p class="mb-3">' + line + '</p>';
-            }).join('');
-            return '<div class="sow-print-page bg-white space-y-12"><section class="space-y-8"><div class="red-bar"><h3 class="text-3xl font-black uppercase tracking-tighter">' + s.title + '</h3></div><div class="text-lg leading-relaxed text-slate-800">' + body + '</div></section></div>';
-          }).join('')}
+          ${sections.map(s =>
+            '<div class="sow-print-page bg-white space-y-12"><section class="space-y-8"><div class="red-bar"><h3 class="text-3xl font-black uppercase tracking-tighter">' + s.title + '</h3></div><div class="text-lg leading-relaxed text-slate-800 prose max-w-none">' + s.content + '</div></section></div>'
+          ).join('')
 
           <!-- DEPLOYMENT LOCATIONS -->
           <div class="sow-print-page bg-white space-y-12">
@@ -560,6 +571,36 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     };
 
     // All sections rendered from editable sections state (including Purpose)
+    // Strip HTML tags for jsPDF plain text rendering
+    // For full formatting fidelity, use Print SOW (browser print-to-PDF)
+    const stripHtml = (html: string) => {
+      return html
+        .replace(/<h[1-3][^>]*>/gi, '
+
+')
+        .replace(/<\/h[1-3]>/gi, '
+')
+        .replace(/<li[^>]*>/gi, '
+• ')
+        .replace(/<\/li>/gi, '')
+        .replace(/<br\s*\/?>/gi, '
+')
+        .replace(/<p[^>]*>/gi, '
+')
+        .replace(/<\/p>/gi, '
+')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/
+{3,}/g, '
+
+')
+        .trim();
+    };
+
     sections.forEach(section => {
       doc.addPage();
       addSectionHeader(section.title);
@@ -567,18 +608,13 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
       let sectionY = 45;
-      const lines = section.content.split('\n');
+      const plainText = stripHtml(section.content);
+      const lines = plainText.split('
+');
       lines.forEach(line => {
         if (!line.trim()) { sectionY += 4; return; }
-        if (line.startsWith('## ')) {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(12);
-          doc.text(line.slice(3), 20, sectionY);
-          sectionY += 8;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(11);
-        } else if (line.startsWith('- ') || line.startsWith('* ')) {
-          const wrapped = doc.splitTextToSize('• ' + line.slice(2), 165);
+        if (line.startsWith('• ')) {
+          const wrapped = doc.splitTextToSize(line, 165);
           wrapped.forEach((l: string) => {
             if (sectionY > 270) { doc.addPage(); addSectionHeader(section.title + ' (cont.)'); sectionY = 45; }
             doc.text(l, 25, sectionY);
@@ -719,11 +755,10 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                 <div className="flex items-center gap-4 border-l-4 border-[#d12913] pl-6">
                   <h3 className="text-3xl font-black uppercase tracking-tighter">{section.title}</h3>
                 </div>
-                <div className="text-lg leading-relaxed text-slate-700 prose max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-                    {section.content}
-                  </ReactMarkdown>
-                </div>
+                <div
+                  className="text-lg leading-relaxed text-slate-700 prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: section.content }}
+                />
               </div>
             ))}
             {/* Deployment Locations */}
@@ -997,15 +1032,17 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                     )}
                  </div>
                  {isEditing ? (
-                   <textarea 
-                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 min-h-[200px] text-sm font-medium leading-relaxed outline-none focus:border-brand transition-all resize-none"
-                     value={section.content}
-                     onChange={e => handleUpdateSection(section.id, 'content', e.target.value)}
+                   <RichTextEditor
+                     key={section.id}
+                     content={section.content}
+                     onChange={html => handleUpdateSection(section.id, 'content', html)}
+                     placeholder="Enter section content..."
                    />
                  ) : (
-                   <div className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 min-h-[200px] text-sm font-medium leading-relaxed text-slate-700 prose max-w-none markdown-body">
-                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{section.content}</ReactMarkdown>
-                   </div>
+                   <div
+                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-6 min-h-[200px] text-sm font-medium leading-relaxed text-slate-700 prose max-w-none"
+                     dangerouslySetInnerHTML={{ __html: section.content }}
+                   />
                  )}
               </div>
             ))}
