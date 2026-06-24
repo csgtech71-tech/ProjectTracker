@@ -60,7 +60,7 @@ function projectToRow(p: Project) {
     locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
     accomplishments, milestones, contacts, surveyQuestions,
     costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-    customerSignature, ourSignature, sowMeta,
+    customerSignature, ourSignature, sowMeta, contactSignatures,
     ...rest
   } = p;
 
