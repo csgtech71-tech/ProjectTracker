@@ -263,9 +263,11 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     ];
   }, [sections]);
 
-  // Persist SOW changes to the project state
+  // Persist SOW changes to both the project AND the global template
+  // so edits become the new default for future projects
   const handleSave = () => {
     onUpdate({ ...project, sowSections: sections });
+    onUpdateGlobalSettings({ ...globalSettings, globalSowSections: sections });
     setIsEditing(false);
   };
 
