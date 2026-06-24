@@ -54,10 +54,10 @@ const DEFAULT_SOW_SECTIONS = (customerName: string): SowSection[] => [
   {
     id: 'sow-executing',
     title: 'Executing',
-    content: `- Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project
-- Execute plan with internal MedixSafe resources during delivery of items as specified in Section 1.1 Activity Description
-- Providing regular progress updates as needed and working with the Customer team to remove any dependencies
-- Provide any project plan updates`,
+    content: `- Establishing and maintaining the structure mechanisms, guidelines, procedures and required facilities to deliver the project.
+- Execute plan with internal MedixSafe resources during delivery of items.
+- Providing regular progress updates as needed and working with the Customer team to remove any dependencies.
+- Provide any project plan updates.`,
   },
   {
     id: 'sow-monitoring',
