@@ -330,11 +330,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               .no-print { display: none !important; }
               .bg-black { background-color: #000000 !important; }
               .text-white { color: #ffffff !important; }
-              .bg-slate-50 { background-color: #f8fafc !important; }
-              .border-brand { border-color: #d12913 !important; }
-              .text-brand { color: #d12913 !important; }
             }
-            body { font-family: 'Inter', sans-serif; line-height: 1.6; }
+            body { font-family: Inter, sans-serif; line-height: 1.6; }
             .prose h1 { font-size: 2em; font-weight: 900; margin: 0.5em 0; }
             .prose h2 { font-size: 1.5em; font-weight: 900; margin: 0.75em 0; text-transform: uppercase; letter-spacing: 0.05em; }
             .prose h3 { font-size: 1.2em; font-weight: 700; margin: 0.75em 0; }
@@ -352,7 +349,6 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             ul { list-style-type: disc; margin-left: 20px; }
             ol { list-style-type: decimal; margin-left: 20px; }
             p { margin-bottom: 10px; }
-            .commitment-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 1rem; padding: 2rem; margin-top: 2rem; }
             .red-bar { border-left: 4px solid #d12913; padding-left: 1.5rem; }
           </style>
         </head>
@@ -362,7 +358,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             <div class="space-y-12">
               <div class="bg-black -mx-[25mm] px-[25mm] py-12 flex justify-between items-center">
                  <h1 class="text-6xl font-black text-white uppercase tracking-tighter leading-none">Statement<br/>Of Work</h1>
-                 ${globalSettings.companyLogoBase64 ? `<img src="${globalSettings.companyLogoBase64}" class="h-14 object-contain ml-8 max-w-[220px]" alt="Logo" />` : ''}
+                 ${globalSettings.companyLogoBase64 ? '<img src="' + globalSettings.companyLogoBase64 + '" class="h-14 object-contain ml-8 max-w-[220px]" alt="Logo" />' : ''}
               </div>
               <div class="h-2 w-32 bg-black"></div>
               <div>
@@ -374,13 +370,13 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
             <div class="grid grid-cols-2 gap-20 border-t border-slate-100 pt-10">
                <div>
                  <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Customer Contact</p>
-                 <p class="text-sm font-black uppercase text-slate-900">${customerLead?.name || 'Primary Stakeholder'}</p>
-                 <p class="text-xs text-slate-500">${customerLead?.email || 'N/A'}</p>
+                 <p class="text-sm font-black uppercase text-slate-900">${customerLead ? customerLead.name : 'Primary Stakeholder'}</p>
+                 <p class="text-xs text-slate-500">${customerLead ? (customerLead.email || 'N/A') : 'N/A'}</p>
                </div>
                <div>
                  <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">${companyName} Lead</p>
-                 <p class="text-sm font-black uppercase text-slate-900">${internalPM?.name || 'Project Manager'}</p>
-                 <p class="text-xs text-slate-500">${internalPM?.email || 'N/A'}</p>
+                 <p class="text-sm font-black uppercase text-slate-900">${internalPM ? internalPM.name : 'Project Manager'}</p>
+                 <p class="text-xs text-slate-500">${internalPM ? (internalPM.email || 'N/A') : 'N/A'}</p>
                </div>
             </div>
           </div>
@@ -392,19 +388,14 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <h3 class="text-3xl font-black uppercase tracking-tighter">Table of Contents</h3>
               </div>
               <div class="space-y-4">
-                ${toc.map(item => `
-                  <div class="flex justify-between items-end border-b border-dotted border-slate-300 pb-1">
-                    <span class="text-sm font-bold uppercase tracking-widest text-slate-700">${item.title}</span>
-                    <span class="text-sm font-black text-slate-900">${item.page < 10 ? '0' : ''}${item.page}</span>
-                  </div>
-                `).join('')}
+                ` + toc.map(item => '<div class="flex justify-between items-end border-b border-dotted border-slate-300 pb-1"><span class="text-sm font-bold uppercase tracking-widest text-slate-700">' + item.title + '</span><span class="text-sm font-black text-slate-900">' + (item.page < 10 ? '0' : '') + item.page + '</span></div>').join('') + `
               </div>
             </section>
           </div>
 
-          ${sections.map(s =>
+          ` + sections.map(s =>
             '<div class="sow-print-page bg-white space-y-12"><section class="space-y-8"><div class="red-bar"><h3 class="text-3xl font-black uppercase tracking-tighter">' + s.title + '</h3></div><div class="text-lg leading-relaxed text-slate-800 prose max-w-none">' + s.content + '</div></section></div>'
-          ).join('')
+          ).join('') + `
 
           <!-- DEPLOYMENT LOCATIONS -->
           <div class="sow-print-page bg-white space-y-12">
@@ -412,30 +403,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <div class="red-bar">
                  <h3 class="text-3xl font-black uppercase tracking-tighter">Deployment Locations</h3>
               </div>
-              ${project.locations.length > 0 ? `
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Location Name</th>
-                      <th>Address</th>
-                      <th>Safes</th>
-                      <th>Users</th>
-                      <th>Type</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${project.locations.map(loc => `
-                      <tr>
-                        <td class="font-bold">${loc.name}</td>
-                        <td>${loc.address}</td>
-                        <td>${loc.numSafes || 0}</td>
-                        <td>${loc.numUsers || 0}</td>
-                        <td class="uppercase text-[10px] font-black">${loc.deploymentType || 'N/A'}</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              ` : '<p class="text-lg text-slate-400 italic">No locations defined in charter.</p>'}
+              ${project.locations.length > 0 ? '<table><thead><tr><th>Location Name</th><th>Address</th><th>Safes</th><th>Users</th><th>Type</th></tr></thead><tbody>' + project.locations.map(loc => '<tr><td class="font-bold">' + loc.name + '</td><td>' + loc.address + '</td><td>' + (loc.numSafes || 0) + '</td><td>' + (loc.numUsers || 0) + '</td><td class="uppercase text-[10px] font-black">' + (loc.deploymentType || 'N/A') + '</td></tr>').join('') + '</tbody></table>' : '<p class="text-lg text-slate-400 italic">No locations defined in charter.</p>'}
             </section>
           </div>
 
@@ -446,17 +414,18 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                  <h3 class="text-3xl font-black uppercase tracking-tighter">Authorization</h3>
               </div>
               <p class="text-lg text-slate-800 leading-relaxed">By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${new Date().toLocaleDateString()}.</p>
-              
               <div class="grid grid-cols-2 gap-20 pt-20">
-                 <div class="space-y-12">
-                    <div class="border-b-2 border-slate-900 w-full h-24"></div>
+                 <div class="space-y-4">
+                    ${project.customerSignature ? '<img src="' + project.customerSignature + '" class="w-full h-24 object-contain border-b-2 border-slate-900" />' : '<div class="border-b-2 border-slate-900 w-full h-24"></div>'}
                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Authorization</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${project.customerName}</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${primaryCustomer ? primaryCustomer.name : project.customerName}</p>
+                    <p class="text-xs text-slate-400">${primaryCustomer ? primaryCustomer.role : ''}</p>
                  </div>
-                 <div class="space-y-12">
-                    <div class="border-b-2 border-slate-900 w-full h-24"></div>
+                 <div class="space-y-4">
+                    ${project.ourSignature ? '<img src="' + project.ourSignature + '" class="w-full h-24 object-contain border-b-2 border-slate-900" />' : '<div class="border-b-2 border-slate-900 w-full h-24"></div>'}
                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Authorization</p>
-                    <p class="text-sm font-black uppercase text-slate-900">${companyName}</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${primaryInternal ? primaryInternal.name : companyName}</p>
+                    <p class="text-xs text-slate-400">${primaryInternal ? primaryInternal.role : ''}</p>
                  </div>
               </div>
             </section>
@@ -468,32 +437,18 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <div class="red-bar">
                  <h3 class="text-3xl font-black uppercase tracking-tighter">Key Stakeholders</h3>
               </div>
-              
-              <div class="space-y-12">
-                <div class="space-y-6">
-                  <h4 class="text-xs font-black uppercase tracking-widest text-[#d12913]">Client Operations</h4>
-                  <div class="grid grid-cols-2 gap-4">
-                    ${project.contacts.filter(c => c.side === 'customer').map(c => `
-                      <div class="p-6 bg-white border border-slate-200 rounded-2xl space-y-1">
-                        <p class="text-lg font-black text-slate-900 uppercase">${c.name}</p>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${c.role}</p>
-                        <p class="text-xs text-slate-500">${c.email || 'N/A'}</p>
-                      </div>
-                    `).join('')}
+              <div class="grid grid-cols-2 gap-12">
+                <div>
+                  <div class="flex items-center gap-3 pb-3 border-b-2 border-slate-900 mb-4">
+                    <p class="text-sm font-black uppercase tracking-widest">${companyName}</p>
                   </div>
+                  ` + project.contacts.filter(c => c.side === 'internal').map(c => '<div class="flex items-start gap-3 py-3 border-b border-slate-100"><div class="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white font-black text-sm shrink-0">' + c.name.charAt(0).toUpperCase() + '</div><div><p class="font-black text-slate-900 uppercase">' + c.name + '</p><p class="text-[10px] text-slate-400 uppercase">' + c.role + '</p><p class="text-xs text-slate-500">' + (c.email || '') + '</p></div></div>').join('') + `
                 </div>
-
-                <div class="space-y-6">
-                  <h4 class="text-xs font-black uppercase tracking-widest text-[#d12913]">MedixSafe Internal Team</h4>
-                  <div class="grid grid-cols-2 gap-4">
-                    ${project.contacts.filter(c => c.side === 'internal').map(c => `
-                      <div class="p-6 bg-white border border-slate-200 rounded-2xl space-y-1">
-                        <p class="text-lg font-black text-slate-900 uppercase">${c.name}</p>
-                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${c.role}</p>
-                        <p class="text-xs text-slate-500">${c.email || 'N/A'}</p>
-                      </div>
-                    `).join('')}
+                <div>
+                  <div class="flex items-center gap-3 pb-3 border-b-2 border-slate-900 mb-4">
+                    <p class="text-sm font-black uppercase tracking-widest">${project.customerName}</p>
                   </div>
+                  ` + project.contacts.filter(c => c.side === 'customer').map(c => '<div class="flex items-start gap-3 py-3 border-b border-slate-100"><div class="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-black text-sm shrink-0">' + c.name.charAt(0).toUpperCase() + '</div><div><p class="font-black text-slate-900 uppercase">' + c.name + '</p><p class="text-[10px] text-slate-400 uppercase">' + c.role + '</p><p class="text-xs text-slate-500">' + (c.email || '') + '</p></div></div>').join('') + `
                 </div>
               </div>
             </section>
@@ -505,19 +460,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <div class="red-bar">
                  <h3 class="text-3xl font-black uppercase tracking-tighter">Project Roadmap</h3>
               </div>
-              
               <div class="space-y-12">
-                ${project.milestones.map((m, idx) => `
-                  <div class="flex gap-12 relative">
-                    <div class="w-32 pt-1">
-                      <p class="text-sm font-black text-[#d12913]">${new Date(m.date).toLocaleDateString()}</p>
-                    </div>
-                    <div class="flex-1 space-y-1">
-                      <h4 class="text-xl font-black text-slate-900 uppercase tracking-tighter">${m.title}</h4>
-                      <p class="text-sm text-slate-500 font-medium">${m.type === 'milestone' ? 'Key Project Milestone' : m.type === 'touchpoint' ? 'Two times weekly touchpoint to address any issues, answer any questions, etc.' : 'Project Phase Completion'}</p>
-                    </div>
-                  </div>
-                `).join('')}
+                ` + project.milestones.map((m, idx) => '<div class="flex gap-12 relative"><div class="w-32 pt-1"><p class="text-sm font-black text-red-600">' + new Date(m.date).toLocaleDateString() + '</p></div><div class="flex-1"><h4 class="text-xl font-black text-slate-900 uppercase">' + m.title + '</h4><p class="text-sm text-slate-500">' + (m.type === 'milestone' ? 'Key Project Milestone' : m.type === 'touchpoint' ? 'Weekly touchpoint' : 'Project Phase') + '</p></div></div>').join('') + `
               </div>
             </section>
           </div>
