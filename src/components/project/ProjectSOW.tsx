@@ -435,15 +435,15 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
               <p class="text-lg text-slate-800 leading-relaxed">By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${new Date().toLocaleDateString()}.</p>
               <div class="grid grid-cols-2 gap-20 pt-20">
                  <div class="space-y-4">
-                    ${project.customerSignature ? '<img src="' + project.customerSignature + '" class="max-w-full max-h-16 object-contain mx-auto" />' : '<div class="border-b-2 border-slate-900 w-full h-24"></div>'}
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Authorization</p>
-                    <p class="text-xs font-semibold text-slate-900">${primaryCustomer ? primaryCustomer.name : project.customerName}</p>
+                    ${project.customerSignature ? '<img src="' + project.customerSignature + '" class="w-full h-24 object-contain border-b-2 border-slate-900" />' : '<div class="border-b-2 border-slate-900 w-full h-24"></div>'}
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Signature</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${primaryCustomer ? primaryCustomer.name : project.customerName}</p>
                     <p class="text-xs text-slate-400">${primaryCustomer ? primaryCustomer.role : ''}</p>
                  </div>
                  <div class="space-y-4">
-                    ${project.ourSignature ? '<img src="' + project.ourSignature + '" class="max-w-full max-h-16 object-contain mx-auto" />' : '<div class="border-b-2 border-slate-900 w-full h-24"></div>'}
+                    ${project.ourSignature ? '<img src="' + project.ourSignature + '" class="w-full h-24 object-contain border-b-2 border-slate-900" />' : '<div class="border-b-2 border-slate-900 w-full h-24"></div>'}
                     <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Internal Authorization</p>
-                    <p class="text-xs font-semibold text-slate-900">${primaryInternal ? primaryInternal.name : companyName}</p>
+                    <p class="text-sm font-black uppercase text-slate-900">${primaryInternal ? primaryInternal.name : companyName}</p>
                     <p class="text-xs text-slate-400">${primaryInternal ? primaryInternal.role : ''}</p>
                  </div>
               </div>
@@ -732,14 +732,14 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12 pt-4">
                 {/* Customer Signature */}
-                <div className="space-y-4">
+                <div className="space-y-4 min-h-[320px]">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#d12913]">Customer Authorization</p>
+                      <p className="text-[9px] font-medium uppercase tracking-[0.15em] text-slate-500">Customer Signature</p>
                       {primaryCustomer ? (
                         <div className="mt-1">
-                          <p className="text-xs font-semibold text-slate-900">{primaryCustomer.name}</p>
-                          <p className="text-[11px] text-slate-500 mt-1">{primaryCustomer.role}</p>
+                          <p className="text-sm font-black text-slate-900 uppercase">{primaryCustomer.name}</p>
+                          <p className="text-xs text-slate-400 font-bold">{primaryCustomer.role}</p>
                         </div>
                       ) : (
                         <p className="text-xs text-slate-400 italic mt-1">No customer stakeholder assigned</p>
@@ -756,7 +756,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                       ref={customerCanvasRef}
                       width={500}
                       height={160}
-                      className="w-full h-36 cursor-crosshair touch-none bg-white"
+                      className="w-full h-40 cursor-crosshair touch-none"
                       onMouseDown={startDrawing(customerCanvasRef, setCustomerSigning)}
                       onMouseMove={draw(customerCanvasRef, customerSigning)}
                       onMouseUp={stopDrawing(customerCanvasRef, setCustomerSigning, 'customer')}
@@ -771,20 +771,20 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                       </div>
                     )}
                   </div>
-                  <div className="border-t border-slate-400 pt-3">
-                    <p className="text-[11px] font-medium text-slate-600">{primaryCustomer?.name || 'Customer Representative'} — {project.customerName}</p>
+                  <div className="border-t-2 border-slate-900 pt-2">
+                    <p className="text-[10px] font-bold text-slate-500">{primaryCustomer?.name || 'Customer Representative'} — {project.customerName}</p>
                   </div>
                 </div>
 
                 {/* Internal Signature */}
-                <div className="space-y-4">
+                <div className="space-y-4 min-h-[320px]">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-[#d12913]">{globalSettings.companyName || 'MedixSafe'} Authorization</p>
+                      <p className="text-[9px] font-medium uppercase tracking-[0.15em] text-slate-500">{globalSettings.companyName || 'MedixSafe'} Authorization</p>
                       {primaryInternal ? (
                         <div className="mt-1">
-                          <p className="text-xs font-semibold text-slate-900">{primaryInternal.name}</p>
-                          <p className="text-[11px] text-slate-500 mt-1">{primaryInternal.role}</p>
+                          <p className="text-sm font-black text-slate-900 uppercase">{primaryInternal.name}</p>
+                          <p className="text-xs text-slate-400 font-bold">{primaryInternal.role}</p>
                         </div>
                       ) : (
                         <p className="text-xs text-slate-400 italic mt-1">No internal stakeholder assigned</p>
@@ -801,7 +801,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                       ref={internalCanvasRef}
                       width={500}
                       height={160}
-                      className="w-full h-36 cursor-crosshair touch-none bg-white"
+                      className="w-full h-40 cursor-crosshair touch-none"
                       onMouseDown={startDrawing(internalCanvasRef, setInternalSigning)}
                       onMouseMove={draw(internalCanvasRef, internalSigning)}
                       onMouseUp={stopDrawing(internalCanvasRef, setInternalSigning, 'internal')}
@@ -816,8 +816,8 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
                       </div>
                     )}
                   </div>
-                  <div className="border-t border-slate-400 pt-3">
-                    <p className="text-[11px] font-medium text-slate-600">{primaryInternal?.name || 'Authorized Representative'} — {globalSettings.companyName || 'MedixSafe'}</p>
+                  <div className="border-t-2 border-slate-900 pt-2">
+                    <p className="text-[10px] font-bold text-slate-500">{primaryInternal?.name || 'Authorized Representative'} — {globalSettings.companyName || 'MedixSafe'}</p>
                   </div>
                 </div>
               </div>
@@ -996,3 +996,4 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     </div>
   );
 };
+
