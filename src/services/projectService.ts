@@ -227,7 +227,8 @@ export const settingsService = {
       return { sidebarTitle: 'Project Tracker', companyName: 'MedixSafe' };
     }
 
-    const settingsData = data.data as Record<string, unknown> | null;
+    const settingsData = (data.data ?? {}) as Record<string, unknown>;
+    console.log('[settingsService.load] raw data.data:', JSON.stringify(data.data), 'internalContacts:', JSON.stringify(settingsData.internalContacts));
     return {
       sidebarTitle: data.sidebar_title ?? 'Project Tracker',
       companyName: data.company_name,
@@ -237,12 +238,12 @@ export const settingsService = {
       salesEmail: data.sales_email,
       sidebarIconBase64: data.sidebar_icon_base64,
       companyLogoBase64: data.company_logo_base64,
-      internalContacts: (settingsData?.internalContacts as GlobalSettings['internalContacts']) ?? [],
+      internalContacts: (settingsData.internalContacts as GlobalSettings['internalContacts']) ?? [],
     };
   },
 
   async save(s: GlobalSettings): Promise<void> {
-    const { error } = await supabase.from('global_settings').upsert({
+    const payload = {
       id: 'singleton',
       sidebar_title: s.sidebarTitle,
       company_name: s.companyName,
@@ -254,7 +255,13 @@ export const settingsService = {
       company_logo_base64: s.companyLogoBase64,
       updated_at: new Date().toISOString(),
       data: { internalContacts: s.internalContacts ?? [] },
-    });
+    };
+    console.log('[settingsService.save] internalContacts count:', (s.internalContacts ?? []).length, 'payload.data:', JSON.stringify(payload.data));
+    const { error } = await supabase.from('global_settings').upsert(payload);
     if (error) throw new Error(error.message);
+    console.log('[settingsService.save] save complete, error:', error);
   },
 };
+// NOTE: global_settings table requires a 'data' jsonb column for internalContacts.
+// Run this in Supabase SQL editor if team members are not persisting:
+// alter table global_settings add column if not exists data jsonb default '{}'::jsonb;
