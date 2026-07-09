@@ -74,8 +74,21 @@ export default function App() {
     setIsDataLoading(true);
     Promise.all([projectService.list(), settingsService.load()])
       .then(([projs, settings]) => {
-        setProjects(projs);
-        if (projs.length > 0) setActiveProjectId(projs[0].id);
+        // Merge internal contacts into any project that's missing them
+        const internalContacts = settings.internalContacts ?? [];
+        const mergedProjs = projs.map(p => {
+          if (internalContacts.length === 0) return p;
+          const existingInternalIds = new Set(
+            p.contacts.filter(c => c.side === 'internal').map(c => c.email)
+          );
+          const missingInternal = internalContacts
+            .filter(ic => !existingInternalIds.has(ic.email))
+            .map(ic => ({ ...ic, id: crypto.randomUUID() }));
+          if (missingInternal.length === 0) return p;
+          return { ...p, contacts: [...p.contacts, ...missingInternal] };
+        });
+        setProjects(mergedProjs);
+        if (mergedProjs.length > 0) setActiveProjectId(mergedProjs[0].id);
         setGlobalSettings(settings);
         setDataLoadError('');
       })
@@ -87,23 +100,7 @@ export default function App() {
   }, [user]);
 
   const handleUpdateProject = useCallback(async (updated: Project) => {
-    // Merge with current in-memory state to prevent tabs overwriting each other's data.
-    // This protects against stale closures in tab components.
-    setProjects((prev) => {
-      const current = prev.find(p => p.id === updated.id);
-      if (!current) return prev.map((p) => (p.id === updated.id ? updated : p));
-      // The incoming update wins for all its own fields, but we protect
-      // critical arrays that other tabs own by keeping whichever is longer/newer
-      const merged: Project = {
-        ...current,
-        ...updated,
-        contacts: updated.contacts?.length ? updated.contacts : current.contacts,
-        locations: updated.locations?.length ? updated.locations : current.locations,
-        milestones: updated.milestones?.length ? updated.milestones : current.milestones,
-        costingItems: updated.costingItems?.length ? updated.costingItems : current.costingItems,
-      };
-      return prev.map((p) => (p.id === updated.id ? merged : p));
-    });
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     setIsSaving(true);
     try {
       await projectService.update(updated);
@@ -151,7 +148,10 @@ export default function App() {
           description: 'Project start date.',
         },
       ],
-      contacts: [],
+      contacts: (globalSettings.internalContacts ?? []).map(c => ({
+        ...c,
+        id: crypto.randomUUID(), // fresh ID per project
+      })),
       isClosed: false,
       isArchived: false,
       isExtended: false,

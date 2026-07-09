@@ -255,7 +255,7 @@ export interface GlobalSettings {
   supportEmail?: string;
   salesEmail?: string;
   globalSowSections?: SowSection[];
-  defaultReadinessCategories?: ReadinessCategory[];
+  internalContacts?: Contact[]; // MedixSafe team — seeded into every project
 }
 
 export interface Project {
@@ -283,7 +283,6 @@ export interface Project {
   extendedEndDate?: string;
   customerSignature?: string;
   ourSignature?: string;
-  contactSignatures?: Record<string, string>; // contactId -> base64 signature
   surveyQuestions: SurveyQuestion[];
   sowCost?: number;
   costingItems?: CostingItem[];
