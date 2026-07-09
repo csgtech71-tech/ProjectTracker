@@ -3,12 +3,10 @@ import { supabase } from '../services/supabaseClient';
 import { authService } from '../services/authService';
 import type { AppUser } from '../types';
 
-async function fetchAppUser(): Promise<AppUser | null> {
-  try {
-    return await authService.getAppUser();
-  } catch {
-    return null;
-  }
+async function fetchAppUserWithTimeout(userId: string, email: string): Promise<AppUser | null> {
+  const profilePromise = authService.getAppUserById(userId, email);
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
+  return Promise.race([profilePromise, timeout]);
 }
 
 export function useAuth() {
@@ -18,35 +16,32 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
-    // Track in-flight fetchAppUser calls so concurrent events don't race
-    let inflightRequest = 0;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
 
-        // No session — clear user and stop loading
-        if (!session) {
+        if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
           setAuthError(null);
           setLoading(false);
           return;
         }
 
-        // Has session — fetch the app user profile
-        // Use a counter to discard stale concurrent fetches
-        const thisRequest = ++inflightRequest;
-        const appUser = await fetchAppUser();
+        const appUser = await fetchAppUserWithTimeout(session.user.id, session.user.email ?? '');
+        if (!mounted) return;
 
-        if (!mounted || thisRequest !== inflightRequest) return;
-
-        if (appUser) {
+        if (!appUser) {
+          if (event === 'SIGNED_IN') {
+            setAuthError('Account not configured. Contact your administrator.');
+            await supabase.auth.signOut();
+            setUser(null);
+          } else {
+            setUser(null);
+          }
+        } else {
           setAuthError(null);
           setUser(appUser);
-        } else {
-          setAuthError('Account not configured. Contact your administrator.');
-          await supabase.auth.signOut();
-          setUser(null);
         }
         setLoading(false);
       }
@@ -58,18 +53,5 @@ export function useAuth() {
     };
   }, []);
 
-  // Wrap signOut so the button can just call it safely
-  const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (e) {
-      console.error('Sign out failed:', e);
-      // Force local state clear even if supabase call fails
-      setUser(null);
-      setAuthError(null);
-      setLoading(false);
-    }
-  };
-
-  return { user, loading, authError, isAdmin: user?.role === 'admin', signOut };
+  return { user, loading, authError, isAdmin: user?.role === 'admin' };
 }
