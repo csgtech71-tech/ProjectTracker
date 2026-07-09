@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Upload, Activity, AlertTriangle, CheckCircle2, Users, RefreshCw, Clock,
   Trash2, ChevronDown, ChevronUp, X, Database, Cpu, Edit2, Save,
@@ -177,8 +177,19 @@ const Toggle: React.FC<{ label: string; enabled: boolean; onChange: (v: boolean)
 
 export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ currentUser, globalSettings }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [imports, setImports] = useState<ImportedFile[]>([]);
-  const [devices, setDevices] = useState<LocalDevice[]>([]);
+  // Persist loaded logs to sessionStorage so page refresh doesn't wipe them
+  const [imports, setImports] = useState<ImportedFile[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('logAnalyzer_imports');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [devices, setDevices] = useState<LocalDevice[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('logAnalyzer_devices');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestResults, setIngestResults] = useState<{ filename: string; ok: boolean; msg: string }[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -198,6 +209,14 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
 
   const setToggle = (key: keyof DisplayToggles) => (val: boolean) =>
     setToggles(prev => ({ ...prev, [key]: val }));
+
+  // Sync to sessionStorage on every change
+  useEffect(() => {
+    try { sessionStorage.setItem('logAnalyzer_imports', JSON.stringify(imports)); } catch {}
+  }, [imports]);
+  useEffect(() => {
+    try { sessionStorage.setItem('logAnalyzer_devices', JSON.stringify(devices)); } catch {}
+  }, [devices]);
 
   const allAccess = useMemo(() => imports.flatMap(i => i.accessEvents), [imports]);
   const allSystem = useMemo(() => imports.flatMap(i => i.systemEvents), [imports]);
@@ -326,7 +345,10 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
   };
   const handleExportCSV = () => exportCSV(allAccess, allSystem, devices, globalSettings.companyName || 'MedixSafe');
 
-  const clearAll = () => { setImports([]); setDevices([]); setIngestResults([]); setShowResults(false); setFilterDevice('all'); setFilterResult('all'); setFilterStart(''); setFilterEnd(''); };
+  const clearAll = () => {
+    sessionStorage.removeItem('logAnalyzer_imports');
+    sessionStorage.removeItem('logAnalyzer_devices');
+    setImports([]); setDevices([]); setIngestResults([]); setShowResults(false); setFilterDevice('all'); setFilterResult('all'); setFilterStart(''); setFilterEnd(''); };
 
   const hasData = imports.length > 0;
   const totalSystemEvents = allSystem.length;
