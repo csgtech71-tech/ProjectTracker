@@ -61,7 +61,6 @@ export const AdminSettings: React.FC<Props> = ({
   const [modalSaving, setModalSaving] = useState(false);
   const [modalError, setModalError] = useState('');
 
-  useEffect(() => { setLocal({ ...settings }); }, [settings]);
 
   const loadUsers = () => {
     if (!isAdmin) return;
@@ -227,13 +226,13 @@ export const AdminSettings: React.FC<Props> = ({
   const modalTitle = modal.mode === 'invite' ? 'Invite User' : modal.mode === 'add' ? 'Add User' : `Edit — ${modal.username}`;
   const modalSubmitLabel = modal.mode === 'invite' ? 'Send Invite' : modal.mode === 'add' ? 'Create User' : 'Save Changes';
 
-  const handleSaveTeamMember = async () => {
+  const handleSaveTeamMember = () => {
     if (!teamForm.name.trim()) return;
     const members = local.internalContacts ?? [];
     let updated: Contact[];
     if (editingTeamId) {
       updated = members.map(m => m.id === editingTeamId
-        ? { ...m, ...teamForm }
+        ? { ...m, name: teamForm.name, role: teamForm.role, email: teamForm.email, phone: teamForm.phone }
         : m
       );
     } else {
@@ -249,26 +248,19 @@ export const AdminSettings: React.FC<Props> = ({
         notes: '',
       }];
     }
-    const updated_settings = { ...local, internalContacts: updated };
-    setLocal(updated_settings);
+    // Update local state only — persisted when user clicks Save Settings
+    setLocal(prev => ({ ...prev, internalContacts: updated }));
     setShowTeamModal(false);
     setEditingTeamId(null);
     setTeamForm({ name: '', role: '', email: '', phone: '' });
-    // Save immediately
-    setIsSaving(true);
-    try {
-      await onUpdateSettings(updated_settings);
-    } finally {
-      setIsSaving(false);
-    }
   };
 
-  const handleDeleteTeamMember = async (id: string) => {
-    if (!confirm('Remove this team member from all future projects?')) return;
-    const updated = (local.internalContacts ?? []).filter(m => m.id !== id);
-    const updated_settings = { ...local, internalContacts: updated };
-    setLocal(updated_settings);
-    await onUpdateSettings(updated_settings);
+  const handleDeleteTeamMember = (id: string) => {
+    if (!confirm('Remove this team member?')) return;
+    setLocal(prev => ({
+      ...prev,
+      internalContacts: (prev.internalContacts ?? []).filter(m => m.id !== id),
+    }));
   };
 
   return (
@@ -389,6 +381,11 @@ export const AdminSettings: React.FC<Props> = ({
                     </div>
                   ))}
                 </div>
+              )}
+              {(local.internalContacts ?? []).length > 0 && (
+                <p className="text-[10px] text-slate-400 italic mt-4">
+                  Changes are saved when you click <strong>Save Settings</strong> below.
+                </p>
               )}
             </div>
           </div>
