@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import type { GlobalSettings, AppUser, UserRole, ReadinessCategory, ReadinessItem } from '../../types';
+import React, { useState, useEffect } from 'react';
+import type { GlobalSettings, AppUser, UserRole, Contact } from '../../types';
 import { authService } from '../../services/authService';
 import { supabase } from '../../services/supabaseClient';
-import { DEFAULT_READINESS } from '../project/ProjectReadiness';
 import {
   Building, Users, Check, RefreshCw, ImageIcon, Trash2,
-  UserPlus, Edit2, X, ShieldCheck, Save, Mail, Info,
-  ClipboardList, Plus, ChevronDown, ChevronUp,
+  UserPlus, Edit2, Edit3, X, ShieldCheck, Save, Mail, Info, Plus,
 } from 'lucide-react';
 
 interface Props {
@@ -48,17 +46,6 @@ export const AdminSettings: React.FC<Props> = ({
   const [local, setLocal] = useState<GlobalSettings>({ ...settings });
   const [isSaving, setIsSaving] = useState(false);
   const [saveOk, setSaveOk] = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Readiness template editor state
-  const [readinessTemplate, setReadinessTemplate] = useState<ReadinessCategory[]>(
-    settings.defaultReadinessCategories && settings.defaultReadinessCategories.length > 0
-      ? settings.defaultReadinessCategories
-      : DEFAULT_READINESS
-  );
-  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
-  const [editingCatId, setEditingCatId] = useState<string | null>(null);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -66,32 +53,15 @@ export const AdminSettings: React.FC<Props> = ({
   const [userSuccess, setUserSuccess] = useState('');
 
   const [modal, setModal] = useState<UserModalState>(EMPTY_MODAL);
+
+  // Team Members (internal contacts seeded into every project)
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [teamForm, setTeamForm] = useState({ name: '', role: '', email: '', phone: '' });
   const [modalSaving, setModalSaving] = useState(false);
   const [modalError, setModalError] = useState('');
 
-  // Sync local state when parent settings change (e.g. on first load)
-  // but only if we're not in the middle of a save to avoid resetting edits
-  const settingsRef = useRef(settings);
-  useEffect(() => {
-    if (!isSaving) {
-      setLocal({ ...settings });
-      if (settings.defaultReadinessCategories && settings.defaultReadinessCategories.length > 0) {
-        setReadinessTemplate(settings.defaultReadinessCategories);
-      }
-    }
-    settingsRef.current = settings;
-  }, [settings]);
-
-  // Load users exactly once on mount
-  useEffect(() => {
-    if (!isAdmin) return;
-    setLoadingUsers(true);
-    setUserError('');
-    authService.listAppUsers()
-      .then(setAppUsers)
-      .catch((e) => setUserError(e.message || 'Failed to load users.'))
-      .finally(() => setLoadingUsers(false));
-  }, []); // intentionally empty — run once
+  useEffect(() => { setLocal({ ...settings }); }, [settings]);
 
   const loadUsers = () => {
     if (!isAdmin) return;
@@ -103,20 +73,13 @@ export const AdminSettings: React.FC<Props> = ({
       .finally(() => setLoadingUsers(false));
   };
 
+  useEffect(() => { loadUsers(); }, [isAdmin]);
+
   const handleSaveSettings = async () => {
-    if (isSaving) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     setIsSaving(true);
-    setSaveOk(false);
-    try {
-      await onUpdateSettings({ ...local, defaultReadinessCategories: readinessTemplate });
-      setSaveOk(true);
-    } catch (e) {
-      console.error('Settings save failed:', e);
-    } finally {
-      setIsSaving(false);
-      saveTimerRef.current = setTimeout(() => setSaveOk(false), 1500);
-    }
+    await onUpdateSettings(local);
+    setSaveOk(true);
+    setTimeout(() => { setIsSaving(false); setSaveOk(false); }, 1500);
   };
 
   const handleFileUpload = (
@@ -222,12 +185,14 @@ export const AdminSettings: React.FC<Props> = ({
     if (!modal.username.trim()) { setModalError('Username is required.'); return; }
     setModalSaving(true);
     try {
+      // Always update profile fields
       await authService.updateAppUser(modal.userId, {
         username: modal.username.trim(),
         role: modal.role,
         phone: modal.phone.trim() || undefined,
       });
 
+      // Email and password can only be changed for the current user via supabase.auth.updateUser
       if (modal.isSelf && (modal.email.trim() || modal.password.trim())) {
         const authUpdates: { email?: string; password?: string } = {};
         if (modal.email.trim()) authUpdates.email = modal.email.trim();
@@ -259,51 +224,52 @@ export const AdminSettings: React.FC<Props> = ({
     }
   };
 
-  // Readiness template helpers
-  const handleAddReadinessCategory = () => {
-    const newCat: ReadinessCategory = { id: crypto.randomUUID(), name: 'New Category', items: [] };
-    const updated = [...readinessTemplate, newCat];
-    setReadinessTemplate(updated);
-    setExpandedCats(prev => new Set([...prev, newCat.id]));
-    setEditingCatId(newCat.id);
-  };
-
-  const handleRemoveReadinessCategory = (catId: string) => {
-    if (!confirm('Remove this category from the global template?')) return;
-    setReadinessTemplate(prev => prev.filter(c => c.id !== catId));
-  };
-
-  const handleUpdateCategoryName = (catId: string, name: string) => {
-    setReadinessTemplate(prev => prev.map(c => c.id === catId ? { ...c, name } : c));
-  };
-
-  const handleAddReadinessItem = (catId: string) => {
-    const newItem: ReadinessItem = { id: crypto.randomUUID(), task: 'New checklist item', isComplete: false, type: 'checkbox' };
-    setReadinessTemplate(prev => prev.map(c => c.id === catId ? { ...c, items: [...c.items, newItem] } : c));
-    setEditingItemId(newItem.id);
-  };
-
-  const handleRemoveReadinessItem = (catId: string, itemId: string) => {
-    setReadinessTemplate(prev => prev.map(c => c.id === catId ? { ...c, items: c.items.filter(i => i.id !== itemId) } : c));
-  };
-
-  const handleUpdateItemTask = (catId: string, itemId: string, task: string) => {
-    setReadinessTemplate(prev => prev.map(c => c.id === catId
-      ? { ...c, items: c.items.map(i => i.id === itemId ? { ...i, task } : i) }
-      : c
-    ));
-  };
-
-  const toggleCatExpanded = (catId: string) => {
-    setExpandedCats(prev => {
-      const next = new Set(prev);
-      if (next.has(catId)) next.delete(catId); else next.add(catId);
-      return next;
-    });
-  };
-
   const modalTitle = modal.mode === 'invite' ? 'Invite User' : modal.mode === 'add' ? 'Add User' : `Edit — ${modal.username}`;
   const modalSubmitLabel = modal.mode === 'invite' ? 'Send Invite' : modal.mode === 'add' ? 'Create User' : 'Save Changes';
+
+  const handleSaveTeamMember = async () => {
+    if (!teamForm.name.trim()) return;
+    const members = local.internalContacts ?? [];
+    let updated: Contact[];
+    if (editingTeamId) {
+      updated = members.map(m => m.id === editingTeamId
+        ? { ...m, ...teamForm }
+        : m
+      );
+    } else {
+      updated = [...members, {
+        id: crypto.randomUUID(),
+        side: 'internal' as const,
+        name: teamForm.name,
+        role: teamForm.role,
+        email: teamForm.email,
+        phone: teamForm.phone,
+        location: '',
+        address: '',
+        notes: '',
+      }];
+    }
+    const updated_settings = { ...local, internalContacts: updated };
+    setLocal(updated_settings);
+    setShowTeamModal(false);
+    setEditingTeamId(null);
+    setTeamForm({ name: '', role: '', email: '', phone: '' });
+    // Save immediately
+    setIsSaving(true);
+    try {
+      await onUpdateSettings(updated_settings);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteTeamMember = async (id: string) => {
+    if (!confirm('Remove this team member from all future projects?')) return;
+    const updated = (local.internalContacts ?? []).filter(m => m.id !== id);
+    const updated_settings = { ...local, internalContacts: updated };
+    setLocal(updated_settings);
+    await onUpdateSettings(updated_settings);
+  };
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
@@ -368,6 +334,102 @@ export const AdminSettings: React.FC<Props> = ({
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Team Members */}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-50 bg-slate-50 flex justify-between items-center">
+              <div>
+                <h4 className="text-xl font-black uppercase tracking-tighter text-slate-900">MedixSafe Team Members</h4>
+                <p className="text-sm text-slate-500 mt-1">These internal contacts are automatically added to every new project and merged into existing ones on load.</p>
+              </div>
+              <button
+                onClick={() => { setEditingTeamId(null); setTeamForm({ name: '', role: '', email: '', phone: '' }); setShowTeamModal(true); }}
+                className="flex items-center gap-2 px-5 py-2.5 bg-black text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-brand transition-all"
+              >
+                <Plus size={14} /> Add Member
+              </button>
+            </div>
+            <div className="p-8">
+              {(local.internalContacts ?? []).length === 0 ? (
+                <div className="text-center py-10 border-2 border-dashed border-slate-100 rounded-2xl">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">No team members defined</p>
+                  <p className="text-sm text-slate-400">Add your MedixSafe team — they'll appear in every project's Stakeholders tab.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(local.internalContacts ?? []).map(member => (
+                    <div key={member.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl group hover:bg-slate-100 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-brand/10 rounded-xl flex items-center justify-center">
+                          <span className="text-brand font-black text-sm">{member.name.charAt(0).toUpperCase()}</span>
+                        </div>
+                        <div>
+                          <p className="font-black text-slate-900 text-sm">{member.name}</p>
+                          <p className="text-xs text-slate-500">{member.role}{member.email ? ` · ${member.email}` : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => { setEditingTeamId(member.id); setTeamForm({ name: member.name, role: member.role, email: member.email, phone: member.phone }); setShowTeamModal(true); }}
+                          className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-brand transition-colors"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTeamMember(member.id)}
+                          className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Team Member Modal */}
+          {showTeamModal && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                  <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">
+                    {editingTeamId ? 'Edit Team Member' : 'Add Team Member'}
+                  </h3>
+                  <button onClick={() => setShowTeamModal(false)} className="text-slate-400 hover:text-black"><X size={20} /></button>
+                </div>
+                <div className="p-8 space-y-4">
+                  {[
+                    { key: 'name', label: 'Full Name *', placeholder: 'Jane Smith' },
+                    { key: 'role', label: 'Role / Title', placeholder: 'Project Manager' },
+                    { key: 'email', label: 'Email', placeholder: 'jane@medixsafe.com' },
+                    { key: 'phone', label: 'Phone', placeholder: '555-0100' },
+                  ].map(({ key, label, placeholder }) => (
+                    <div key={key} className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+                      <input
+                        className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-brand transition-all"
+                        placeholder={placeholder}
+                        value={teamForm[key as keyof typeof teamForm]}
+                        onChange={e => setTeamForm(f => ({ ...f, [key]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="px-8 py-5 bg-slate-50 border-t flex justify-end gap-3">
+                  <button onClick={() => setShowTeamModal(false)} className="px-5 py-2.5 text-xs font-black uppercase text-slate-400 hover:text-slate-600">Cancel</button>
+                  <button
+                    onClick={handleSaveTeamMember}
+                    disabled={!teamForm.name.trim()}
+                    className="px-8 py-3 bg-black text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-brand transition-all disabled:opacity-40"
+                  >
+                    {editingTeamId ? 'Save Changes' : 'Add Member'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -501,6 +563,7 @@ export const AdminSettings: React.FC<Props> = ({
                 <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-bold">{modalError}</div>
               )}
 
+              {/* Username */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Username</label>
                 <input
@@ -511,6 +574,7 @@ export const AdminSettings: React.FC<Props> = ({
                 />
               </div>
 
+              {/* Email — all modes */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</label>
                 {modal.mode === 'edit' && !modal.isSelf ? (
@@ -531,6 +595,7 @@ export const AdminSettings: React.FC<Props> = ({
                 )}
               </div>
 
+              {/* Password — add mode always, edit mode only for self */}
               {(modal.mode === 'add' || (modal.mode === 'edit' && modal.isSelf)) && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -546,6 +611,7 @@ export const AdminSettings: React.FC<Props> = ({
                 </div>
               )}
 
+              {/* Password note for editing other users */}
               {modal.mode === 'edit' && !modal.isSelf && (
                 <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-100 rounded-xl">
                   <Info size={14} className="text-amber-500 shrink-0 mt-0.5" />
@@ -555,6 +621,7 @@ export const AdminSettings: React.FC<Props> = ({
                 </div>
               )}
 
+              {/* Phone */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone (optional)</label>
                 <input
@@ -566,6 +633,7 @@ export const AdminSettings: React.FC<Props> = ({
                 />
               </div>
 
+              {/* Role */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Role</label>
                 <div className="grid grid-cols-2 gap-3">
