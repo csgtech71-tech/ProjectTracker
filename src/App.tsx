@@ -67,7 +67,7 @@ export default function App() {
     sowCost: 7500,
   });
 
-  const activeProject = projects.find((p) => p.id === activeProjectId);
+  const activeProject = React.useMemo(() => projects.find((p) => p.id === activeProjectId), [projects, activeProjectId]);
 
   useEffect(() => {
     if (!user) return;
@@ -401,7 +401,8 @@ export default function App() {
               </div>
             ) : (
               <>
-                {activeTab === 'dashboard' && (
+                {/* All tabs kept mounted — hidden when not active to prevent unmount/remount data loss */}
+                <div className={activeTab === 'dashboard' ? '' : 'hidden'}>
                   <ProjectDashboard
                     projects={projects}
                     onSelectProject={(id) => { setActiveProjectId(id); setActiveTab('summary'); }}
@@ -410,46 +411,37 @@ export default function App() {
                       setProjects((prev) => prev.map((p) => p.id === id ? { ...p, isArchived: false } : p));
                     }}
                   />
-                )}
-                {activeTab === 'summary' && (activeProject
-                  ? <ProjectSummary project={activeProject} onUpdate={handleUpdateProject} onDelete={handleDeleteProject} onArchive={handleArchiveProject} onNavigateToTab={(tab: Tab) => setActiveTab(tab)} globalSettings={globalSettings} />
-                  : <NoProjectSelected />
-                )}
-                {activeTab === 'readiness' && (activeProject
-                  ? <ProjectReadiness project={activeProject} onUpdate={handleUpdateProject} />
-                  : <NoProjectSelected />
-                )}
-                {activeTab === 'stakeholders' && (activeProject
-                  ? <ProjectContacts project={activeProject} onUpdate={handleUpdateProject} />
-                  : <NoProjectSelected />
-                )}
-                {activeTab === 'timeline' && (activeProject
-                  ? <ProjectCalendar project={activeProject} onUpdate={handleUpdateProject} />
-                  : <NoProjectSelected />
-                )}
-                {activeTab === 'tracking' && (activeProject
-                  ? <ProjectTracking project={activeProject} onUpdate={handleUpdateProject} currentUser={user} />
-                  : <NoProjectSelected />
-                )}
-                {activeTab === 'costing' && (activeProject
-                  ? <ProjectJobCosting project={activeProject} onUpdate={handleUpdateProject} />
-                  : <NoProjectSelected />
-                )}
-                {activeTab === 'sow' && (activeProject
-                  ? <ProjectSOW project={activeProject} onUpdate={handleUpdateProject} onUpdateGlobalSettings={handleUpdateSettings} globalSettings={globalSettings} />
-                  : <NoProjectSelected />
-                )}
-                {activeTab === 'closure' && (activeProject
-                  ? <ProjectClosing project={activeProject} onUpdate={handleUpdateProject} />
-                  : <NoProjectSelected />
-                )}
-                {/* LogAnalyzer is always mounted to preserve in-memory log data */}
+                </div>
+                <div className={activeTab === 'summary' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectSummary project={activeProject} onUpdate={handleUpdateProject} onDelete={handleDeleteProject} onArchive={handleArchiveProject} onNavigateToTab={(tab: Tab) => setActiveTab(tab)} globalSettings={globalSettings} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'readiness' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectReadiness project={activeProject} onUpdate={handleUpdateProject} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'stakeholders' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectContacts project={activeProject} onUpdate={handleUpdateProject} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'timeline' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectCalendar project={activeProject} onUpdate={handleUpdateProject} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'tracking' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectTracking project={activeProject} onUpdate={handleUpdateProject} currentUser={user} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'costing' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectJobCosting project={activeProject} onUpdate={handleUpdateProject} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'sow' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectSOW project={activeProject} onUpdate={handleUpdateProject} onUpdateGlobalSettings={handleUpdateSettings} globalSettings={globalSettings} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'closure' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectClosing project={activeProject} onUpdate={handleUpdateProject} /> : <NoProjectSelected />}
+                </div>
                 <div className={activeTab === 'analyzer' ? '' : 'hidden'}>
                   <LogAnalyzer currentUser={user} globalSettings={globalSettings} />
                 </div>
-                {activeTab === 'settings' && (
+                <div className={activeTab === 'settings' ? '' : 'hidden'}>
                   <AdminSettings settings={globalSettings} currentUser={user} onUpdateSettings={handleUpdateSettings} />
-                )}
+                </div>
               </>
             )}
           </div>
