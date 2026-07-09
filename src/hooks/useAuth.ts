@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { authService } from '../services/authService';
 import type { AppUser } from '../types';
@@ -15,54 +15,65 @@ export function useAuth() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const initialised = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
-    // Step 1: Check session immediately from localStorage — zero network calls.
-    // This resolves loading fast so the UI shows login or app right away.
+    // Read session from localStorage immediately — no network call
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
-      if (!session) {
-        setLoading(false);
-        return;
+      if (session) {
+        const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
+        if (!mounted) return;
+        if (appUser) setUser(appUser);
       }
-      // Session exists — fetch profile
-      const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
-      if (!mounted) return;
-      if (appUser) {
-        setUser(appUser);
-      }
+      initialised.current = true;
       setLoading(false);
     });
 
-    // Step 2: Subscribe to ongoing changes (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
 
-        // INITIAL_SESSION is handled above by getSession() — skip to avoid double fetch
+        // Skip INITIAL_SESSION — handled by getSession() above
         if (event === 'INITIAL_SESSION') return;
 
         if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
           setAuthError(null);
-          setLoading(false);
+          // Only set loading false if we somehow reach here before initialised
+          if (!initialised.current) setLoading(false);
           return;
         }
 
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (event === 'SIGNED_IN') {
           const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
           if (!mounted) return;
           if (appUser) {
             setAuthError(null);
             setUser(appUser);
-          } else if (event === 'SIGNED_IN') {
+          } else {
             setAuthError('Account not configured. Contact your administrator.');
             await supabase.auth.signOut();
             setUser(null);
           }
-          setLoading(false);
+          // Set loading false only if not yet done
+          if (!initialised.current) {
+            initialised.current = true;
+            setLoading(false);
+          }
+          return;
+        }
+
+        // TOKEN_REFRESHED / USER_UPDATED — silently refresh user, never touch loading
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
+          if (!mounted) return;
+          if (appUser) {
+            setAuthError(null);
+            setUser(appUser);
+          }
         }
       }
     );
