@@ -130,7 +130,9 @@ export const ProjectClosing: React.FC<Props> = ({ project, onUpdate }) => {
                 <FileSignature size={14}/> Client Verification
               </h4>
               <div className="space-y-2">
-                <p className="text-4xl font-serif italic text-slate-900">{project.customerSignature}</p>
+                {project.customerSignature?.startsWith('data:image')
+                  ? <img src={project.customerSignature} alt="Signature" className="max-h-20 max-w-full object-contain" />
+                  : <p className="text-4xl font-serif italic text-slate-900">{project.customerSignature}</p>}
                 <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Authorized & Synchronized</p>
               </div>
            </div>
@@ -139,7 +141,9 @@ export const ProjectClosing: React.FC<Props> = ({ project, onUpdate }) => {
                 <ShieldCheck size={14}/> Provider Release
               </h4>
               <div className="space-y-2">
-                <p className="text-4xl font-serif italic text-slate-900">{project.ourSignature}</p>
+                {project.ourSignature?.startsWith('data:image')
+                    ? <img src={project.ourSignature} alt="Authorization Signature" className="max-h-20 max-w-full object-contain" />
+                    : <p className="text-4xl font-serif italic text-slate-900">{project.ourSignature}</p>}
                 <p className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Executive Authorization Verified</p>
               </div>
            </div>
@@ -194,7 +198,9 @@ export const ProjectClosing: React.FC<Props> = ({ project, onUpdate }) => {
               {project.customerSignature ? (
                 <div className="space-y-2">
                   <span className="text-[10px] uppercase font-black text-emerald-600 tracking-widest block">Signature Captured</span>
-                  <p className="text-4xl font-serif italic text-emerald-900 tracking-tighter leading-tight">{project.customerSignature}</p>
+                  {project.customerSignature?.startsWith('data:image')
+                    ? <img src={project.customerSignature} alt="Customer Signature" className="max-h-20 max-w-full object-contain" />
+                    : <p className="text-4xl font-serif italic text-emerald-900 tracking-tighter leading-tight">{project.customerSignature}</p>}
                   <p className="text-[10px] text-emerald-500 font-bold uppercase border-t border-emerald-100 pt-3 inline-block">Authenticated: {new Date().toLocaleDateString()}</p>
                 </div>
               ) : (
@@ -230,7 +236,9 @@ export const ProjectClosing: React.FC<Props> = ({ project, onUpdate }) => {
               {project.ourSignature ? (
                 <div className="space-y-2">
                   <span className="text-[10px] uppercase font-black text-emerald-600 tracking-widest block">Executive Release Logged</span>
-                  <p className="text-4xl font-serif italic text-emerald-900 tracking-tighter leading-tight">{project.ourSignature}</p>
+                  {project.ourSignature?.startsWith('data:image')
+                    ? <img src={project.ourSignature} alt="Authorization Signature" className="max-h-20 max-w-full object-contain" />
+                    : <p className="text-4xl font-serif italic text-emerald-900 tracking-tighter leading-tight">{project.ourSignature}</p>}
                   <p className="text-[10px] text-emerald-500 font-bold uppercase border-t border-emerald-100 pt-3 inline-block">Authorized: {new Date().toLocaleDateString()}</p>
                 </div>
               ) : (
