@@ -3,10 +3,12 @@ import { supabase } from '../services/supabaseClient';
 import { authService } from '../services/authService';
 import type { AppUser } from '../types';
 
-async function fetchAppUserWithTimeout(userId: string, email: string): Promise<AppUser | null> {
-  const profilePromise = authService.getAppUserById(userId, email);
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000));
-  return Promise.race([profilePromise, timeout]);
+async function fetchAppUserById(userId: string, email: string): Promise<AppUser | null> {
+  try {
+    return await authService.getAppUserById(userId, email);
+  } catch {
+    return null;
+  }
 }
 
 export function useAuth() {
@@ -17,9 +19,30 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
+    // Step 1: Check session immediately from localStorage — zero network calls.
+    // This resolves loading fast so the UI shows login or app right away.
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      if (!session) {
+        setLoading(false);
+        return;
+      }
+      // Session exists — fetch profile
+      const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
+      if (!mounted) return;
+      if (appUser) {
+        setUser(appUser);
+      }
+      setLoading(false);
+    });
+
+    // Step 2: Subscribe to ongoing changes (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
+
+        // INITIAL_SESSION is handled above by getSession() — skip to avoid double fetch
+        if (event === 'INITIAL_SESSION') return;
 
         if (event === 'SIGNED_OUT' || !session) {
           setUser(null);
@@ -28,22 +51,19 @@ export function useAuth() {
           return;
         }
 
-        const appUser = await fetchAppUserWithTimeout(session.user.id, session.user.email ?? '');
-        if (!mounted) return;
-
-        if (!appUser) {
-          if (event === 'SIGNED_IN') {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
+          if (!mounted) return;
+          if (appUser) {
+            setAuthError(null);
+            setUser(appUser);
+          } else if (event === 'SIGNED_IN') {
             setAuthError('Account not configured. Contact your administrator.');
             await supabase.auth.signOut();
             setUser(null);
-          } else {
-            setUser(null);
           }
-        } else {
-          setAuthError(null);
-          setUser(appUser);
+          setLoading(false);
         }
-        setLoading(false);
       }
     );
 
