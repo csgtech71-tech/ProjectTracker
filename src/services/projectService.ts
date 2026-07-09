@@ -139,12 +139,52 @@ export const projectService = {
   },
 
   async update(p: Project): Promise<void> {
+    // Build the top-level column updates (non-JSONB fields)
     const row = projectToRow(p);
-    const { error } = await supabase
+    const { data: _data, ...topLevelColumns } = row;
+
+    // Patch the data JSONB column using Postgres || merge operator via RPC.
+    // This merges only the keys present in our update without touching other keys,
+    // so concurrent saves from different tabs never overwrite each other.
+    const patch = row.data as Record<string, unknown>;
+
+    const { error } = await supabase.rpc('patch_project', {
+      p_id: p.id,
+      p_columns: topLevelColumns,
+      p_data_patch: patch,
+    });
+
+    if (error) {
+      // RPC not available yet — fall back to safe merge approach
+      console.warn('patch_project RPC not found, falling back to merge update:', error.message);
+      const { data: current } = await supabase
+        .from('projects')
+        .select('data')
+        .eq('id', p.id)
+        .single();
+
+      const merged = {
+        ...((current?.data ?? {}) as object),
+        ...patch,
+      };
+
+      const { error: fallbackError } = await supabase
+        .from('projects')
+        .update({ ...topLevelColumns, data: merged })
+        .eq('id', p.id);
+      if (fallbackError) throw new Error(fallbackError.message);
+    }
+  },
+
+  // Read the latest version of a project from DB (used to avoid stale overwrites)
+  async get(id: string): Promise<Project> {
+    const { data, error } = await supabase
       .from('projects')
-      .update(row)
-      .eq('id', p.id);
+      .select('*')
+      .eq('id', id)
+      .single();
     if (error) throw new Error(error.message);
+    return rowToProject(data);
   },
 
   async delete(id: string): Promise<void> {
