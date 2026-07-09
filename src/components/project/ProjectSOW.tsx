@@ -146,6 +146,10 @@ Purchase, installation, and maintenance costs meet expectations. The device show
 export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalSettings, globalSettings }) => {
   // Local state for SOW sections, initialized from project or global defaults
   // Load saved sections, or fall back to global defaults, or generate from template
+  // Keep a ref to always have the latest project — prevents stale closure on save
+  const projectRef = useRef(project);
+  useEffect(() => { projectRef.current = project; }, [project]);
+
   const [sections, setSections] = useState<SowSection[]>(
     project.sowSections?.length
       ? project.sowSections
@@ -186,7 +190,7 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
 
   // Persist SOW changes to the project state
   const handleSave = () => {
-    onUpdate({ ...project, sowSections: sections });
+    onUpdate({ ...projectRef.current, sowSections: sections });
     setIsEditing(false);
   };
 
@@ -491,14 +495,9 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
     const addSectionHeader = (title: string, y: number = 30) => {
       doc.setFillColor(209, 41, 19);
       doc.rect(20, y - 5, 1.5, 10, 'F');
-      doc.setFontSize(16);
+      doc.setFontSize(22);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
       doc.text(title, 25, y);
-      // Always reset to body defaults after header
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
     };
 
     // 1.0 Purpose
@@ -550,177 +549,16 @@ export const ProjectSOW: React.FC<Props> = ({ project, onUpdate, onUpdateGlobalS
       });
     });
 
-    // ── Section 4: Contract Acceptance ──────────────────────────────────────────
+    // Authorization
     doc.addPage();
-    addSectionHeader('4. Statement of Work — Contract Acceptance');
-
-    const custContact = project.contacts.find(c => c.side === 'customer' && /manager|lead|director/i.test(c.role))
-      || project.contacts.find(c => c.side === 'customer');
-    const intContact = project.contacts.find(c => c.side === 'internal' && /manager|lead|director/i.test(c.role))
-      || project.contacts.find(c => c.side === 'internal');
-
-    const effectiveDate = project.sowMeta?.contractAcceptanceDate || new Date().toLocaleDateString();
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    const acceptanceText = `By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${effectiveDate}.`;
-    const acceptanceLines = doc.splitTextToSize(acceptanceText, 170);
-    doc.text(acceptanceLines, 20, 45);
-
-    // Customer signature block
-    doc.setDrawColor(0, 0, 0);
-    doc.line(20, 95, 90, 95);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('CUSTOMER AUTHORIZATION', 20, 100);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text(custContact?.name || project.customerName, 20, 108);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(custContact?.role || '', 20, 114);
-    doc.setTextColor(0, 0, 0);
-    doc.line(20, 130, 90, 130);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('DATE', 20, 135);
-    doc.setTextColor(0, 0, 0);
-
-    // Internal signature block
-    doc.line(120, 95, 190, 95);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('MEDIXSAFE AUTHORIZATION', 120, 100);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text(intContact?.name || companyName, 120, 108);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(intContact?.role || '', 120, 114);
-    doc.setTextColor(0, 0, 0);
-    doc.line(120, 130, 190, 130);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('DATE', 120, 135);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-
-    // ── Section 5: Acknowledgement of Completion ─────────────────────────────────
-    doc.addPage();
-    addSectionHeader('5. Acknowledgement — Completion of SOW');
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    const ackIntro = 'This document serves as the official acknowledgement that all services, deliverables, and obligations described in this Statement of Work have been completed to the satisfaction of both the Customer and MedixSafe.';
-    doc.text(doc.splitTextToSize(ackIntro, 170), 20, 45);
-
-    let ackY = 68;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('Both parties confirm that:', 20, ackY);
-    ackY += 8;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    [
-      'All deliverables specified in Section 1 have been fulfilled.',
-      'All Customer Responsibilities outlined in Section 2 have been met.',
-      'Any scope changes were properly documented and approved per Section 3.',
-      'The project has been formally reviewed and closed.',
-    ].forEach(item => {
-      doc.text('•  ' + item, 25, ackY);
-      ackY += 7;
-    });
-
-    // Date of Completion box
-    ackY += 6;
-    doc.setFillColor(253, 232, 229);
-    doc.roundedRect(20, ackY, 170, 20, 2, 2, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 100, 90);
-    doc.text('DATE OF COMPLETION', 25, ackY + 7);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 30, 30);
-    doc.text(project.sowMeta?.completionDate || '_____ / _____ / _________', 25, ackY + 17);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    ackY += 28;
-
-    // Deliverables table
-    autoTable(doc, {
-      startY: ackY,
-      head: [['Deliverable', 'Target Date', 'Status']],
-      body: [
-        ['Remote Activation', project.sowMeta?.activationDeadline || 'TBD', 'Complete'],
-        ['Personnel Training', project.sowMeta?.trainingDeadline || 'TBD', 'Complete'],
-        ['Pilot / Project Program', project.sowMeta?.pilotConclusionDeadline || 'TBD', 'Complete'],
-        ['Final Documentation', '', 'Complete'],
-      ],
-      styles: { fontSize: 9, cellPadding: 3, font: 'helvetica' },
-      headStyles: { fillColor: [15, 15, 15], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 55 }, 2: { cellWidth: 35 } },
-      margin: { left: 20, right: 20 },
-    });
-
-    const sigY = (doc as any).lastAutoTable.finalY + 18;
-
-    // Customer sign-off
-    doc.line(20, sigY, 90, sigY);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('CUSTOMER SIGN-OFF', 20, sigY + 5);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text(custContact?.name || project.customerName, 20, sigY + 13);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(custContact?.role || '', 20, sigY + 19);
-    doc.setTextColor(0, 0, 0);
-    doc.line(20, sigY + 30, 90, sigY + 30);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('DATE SIGNED', 20, sigY + 36);
-    doc.setTextColor(0, 0, 0);
-
-    // Internal sign-off
-    doc.line(120, sigY, 190, sigY);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('MEDIXSAFE SIGN-OFF', 120, sigY + 5);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text(intContact?.name || companyName, 120, sigY + 13);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(intContact?.role || '', 120, sigY + 19);
-    doc.setTextColor(0, 0, 0);
-    doc.line(120, sigY + 30, 190, sigY + 30);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(150, 150, 150);
-    doc.text('DATE SIGNED', 120, sigY + 36);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
+    addSectionHeader('Authorization');
+    doc.text(`By signing below, the parties agree to the terms and scope of work defined in this document. This Statement of Work is effective as of ${new Date().toLocaleDateString()}.`, 20, 45);
+    doc.line(20, 100, 90, 100);
+    doc.text('Customer Authorization', 20, 105);
+    doc.text(project.customerName, 20, 112);
+    doc.line(120, 100, 190, 100);
+    doc.text('Internal Authorization', 120, 105);
+    doc.text(companyName, 120, 112);
 
     // Stakeholders
     doc.addPage();
