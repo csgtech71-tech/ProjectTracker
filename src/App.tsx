@@ -205,14 +205,14 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  const handleUpdateSettings = async (settings: GlobalSettings) => {
+  const handleUpdateSettings = useCallback(async (settings: GlobalSettings) => {
     setGlobalSettings(settings);
     try {
       await settingsService.save(settings);
     } catch (e) {
       console.error('Settings save failed:', e);
     }
-  };
+  }, []);
 
   // All nav items always visible — tabs that need a project show a prompt if none selected
   const navItems = [
