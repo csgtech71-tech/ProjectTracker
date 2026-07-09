@@ -176,16 +176,6 @@ export const projectService = {
     }
   },
 
-  // Read the latest version of a project from DB (used to avoid stale overwrites)
-  async get(id: string): Promise<Project> {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', id)
-      .single();
-    if (error) throw new Error(error.message);
-    return rowToProject(data);
-  },
 
   async delete(id: string): Promise<void> {
     let lastError: Error | null = null;
