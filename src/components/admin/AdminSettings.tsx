@@ -39,7 +39,7 @@ const EMPTY_MODAL: UserModalState = {
   isSelf: false,
 };
 
-export const AdminSettings: React.FC<Props> = ({
+export const AdminSettings: React.FC<Props> = React.memo(function AdminSettings({
   settings, currentUser, onUpdateSettings,
 }) => {
   const isAdmin = currentUser.role === 'admin';
@@ -76,9 +76,7 @@ export const AdminSettings: React.FC<Props> = ({
 
   // Sync only internalContacts from prop — keeps local branding edits intact
   // while ensuring team members added from outside are reflected
-  useEffect(() => {
-    setLocal(prev => ({ ...prev, internalContacts: settings.internalContacts ?? [] }));
-  }, [settings.internalContacts]);
+
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
@@ -681,4 +679,4 @@ export const AdminSettings: React.FC<Props> = ({
       )}
     </div>
   );
-};
+});
