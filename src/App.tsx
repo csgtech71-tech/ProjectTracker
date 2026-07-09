@@ -443,9 +443,10 @@ export default function App() {
                   ? <ProjectClosing project={activeProject} onUpdate={handleUpdateProject} />
                   : <NoProjectSelected />
                 )}
-                {activeTab === 'analyzer' && (
+                {/* LogAnalyzer is always mounted to preserve in-memory log data */}
+                <div className={activeTab === 'analyzer' ? '' : 'hidden'}>
                   <LogAnalyzer currentUser={user} globalSettings={globalSettings} />
-                )}
+                </div>
                 {activeTab === 'settings' && (
                   <AdminSettings settings={globalSettings} currentUser={user} onUpdateSettings={handleUpdateSettings} />
                 )}
