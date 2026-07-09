@@ -175,7 +175,7 @@ const Toggle: React.FC<{ label: string; enabled: boolean; onChange: (v: boolean)
 
 // ─── main component ───────────────────────────────────────────────────────────
 
-export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) => {
+export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ currentUser, globalSettings }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imports, setImports] = useState<ImportedFile[]>([]);
   const [devices, setDevices] = useState<LocalDevice[]>([]);
@@ -897,4 +897,4 @@ export const LogAnalyzer: React.FC<Props> = ({ currentUser, globalSettings }) =>
       )}
     </div>
   );
-};
+});
