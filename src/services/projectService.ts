@@ -227,6 +227,7 @@ export const settingsService = {
       return { sidebarTitle: 'Project Tracker', companyName: 'MedixSafe' };
     }
 
+    const settingsData = data.data as Record<string, unknown> | null;
     return {
       sidebarTitle: data.sidebar_title ?? 'Project Tracker',
       companyName: data.company_name,
@@ -236,6 +237,7 @@ export const settingsService = {
       salesEmail: data.sales_email,
       sidebarIconBase64: data.sidebar_icon_base64,
       companyLogoBase64: data.company_logo_base64,
+      internalContacts: (settingsData?.internalContacts as GlobalSettings['internalContacts']) ?? [],
     };
   },
 
@@ -251,6 +253,7 @@ export const settingsService = {
       sidebar_icon_base64: s.sidebarIconBase64,
       company_logo_base64: s.companyLogoBase64,
       updated_at: new Date().toISOString(),
+      data: { internalContacts: s.internalContacts ?? [] },
     });
     if (error) throw new Error(error.message);
   },
