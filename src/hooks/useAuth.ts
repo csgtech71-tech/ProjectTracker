@@ -53,5 +53,9 @@ export function useAuth() {
     };
   }, []);
 
-  return { user, loading, authError, isAdmin: user?.role === 'admin' };
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  return { user, loading, authError, isAdmin: user?.role === 'admin', signOut };
 }
