@@ -74,6 +74,12 @@ export const AdminSettings: React.FC<Props> = ({
 
   useEffect(() => { loadUsers(); }, [isAdmin]);
 
+  // Sync only internalContacts from prop — keeps local branding edits intact
+  // while ensuring team members added from outside are reflected
+  useEffect(() => {
+    setLocal(prev => ({ ...prev, internalContacts: settings.internalContacts ?? [] }));
+  }, [settings.internalContacts]);
+
   const handleSaveSettings = async () => {
     setIsSaving(true);
     await onUpdateSettings(local);
@@ -226,7 +232,7 @@ export const AdminSettings: React.FC<Props> = ({
   const modalTitle = modal.mode === 'invite' ? 'Invite User' : modal.mode === 'add' ? 'Add User' : `Edit — ${modal.username}`;
   const modalSubmitLabel = modal.mode === 'invite' ? 'Send Invite' : modal.mode === 'add' ? 'Create User' : 'Save Changes';
 
-  const handleSaveTeamMember = () => {
+  const handleSaveTeamMember = async () => {
     if (!teamForm.name.trim()) return;
     const members = local.internalContacts ?? [];
     let updated: Contact[];
@@ -248,19 +254,21 @@ export const AdminSettings: React.FC<Props> = ({
         notes: '',
       }];
     }
-    // Update local state only — persisted when user clicks Save Settings
-    setLocal(prev => ({ ...prev, internalContacts: updated }));
+    const next = { ...local, internalContacts: updated };
+    // Update local state AND persist immediately — don't rely on user clicking Save
+    setLocal(next);
     setShowTeamModal(false);
     setEditingTeamId(null);
     setTeamForm({ name: '', role: '', email: '', phone: '' });
+    await onUpdateSettings(next);
   };
 
-  const handleDeleteTeamMember = (id: string) => {
+  const handleDeleteTeamMember = async (id: string) => {
     if (!confirm('Remove this team member?')) return;
-    setLocal(prev => ({
-      ...prev,
-      internalContacts: (prev.internalContacts ?? []).filter(m => m.id !== id),
-    }));
+    const updated = (local.internalContacts ?? []).filter(m => m.id !== id);
+    const next = { ...local, internalContacts: updated };
+    setLocal(next);
+    await onUpdateSettings(next);
   };
 
   return (
