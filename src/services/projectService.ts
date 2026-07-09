@@ -32,10 +32,7 @@ function rowToProject(row: Record<string, unknown>): Project {
     ourSuccessCriteria: (data.ourSuccessCriteria as Project['ourSuccessCriteria']) ?? [],
     accomplishments: (data.accomplishments as string[]) ?? [],
     milestones: (data.milestones as Project['milestones']) ?? [],
-    contacts: [
-      ...((data.internalContacts as Project['contacts']) ?? (data.contacts as Project['contacts'] ?? []).filter((c: any) => c.side === 'internal')),
-      ...((data.customerContacts as Project['contacts']) ?? (data.contacts as Project['contacts'] ?? []).filter((c: any) => c.side === 'customer')),
-    ],
+    contacts: (data.contacts as Project['contacts']) ?? [],
     surveyQuestions: (data.surveyQuestions as Project['surveyQuestions']) ?? [],
     costingItems: (data.costingItems as Project['costingItems']) ?? [],
     sowTOC: data.sowTOC as string | undefined,
@@ -45,7 +42,6 @@ function rowToProject(row: Record<string, unknown>): Project {
     sowMeta: data.sowMeta as Project['sowMeta'] | undefined,
     customerSignature: data.customerSignature as string | undefined,
     ourSignature: data.ourSignature as string | undefined,
-    contactSignatures: data.contactSignatures as Record<string, string> | undefined,
   };
 }
 
@@ -60,7 +56,7 @@ function projectToRow(p: Project) {
     locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
     accomplishments, milestones, contacts, surveyQuestions,
     costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-    customerSignature, ourSignature, sowMeta, contactSignatures,
+    customerSignature, ourSignature, sowMeta,
     ...rest
   } = p;
 
@@ -86,12 +82,9 @@ function projectToRow(p: Project) {
     updated_at: new Date().toISOString(),
     data: {
       locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
-      accomplishments, milestones,
-      internalContacts: contacts.filter(c => c.side === 'internal'),
-      customerContacts: contacts.filter(c => c.side === 'customer'),
-      surveyQuestions,
+      accomplishments, milestones, contacts, surveyQuestions,
       costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-      customerSignature, ourSignature, sowMeta, contactSignatures,
+      customerSignature, ourSignature, sowMeta,
     },
   };
 }
@@ -121,21 +114,33 @@ export const projectService = {
 
   async create(p: Project): Promise<Project> {
     const row = projectToRow(p);
-    // Use select() chained to insert so Supabase returns the row in a single
-    // round-trip. This avoids a second query that can fail when RLS SELECT
-    // policies are stricter than INSERT policies.
-    const { data, error } = await supabase
-      .from('projects')
-      .insert({ ...row, created_at: new Date().toISOString() })
-      .select()
-      .single();
-    if (error) throw new Error('Insert failed: ' + error.message + ' | code: ' + error.code);
-    return rowToProject(data);
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const { error: insertError } = await supabase
+          .from('projects')
+          .insert({ ...row, created_at: new Date().toISOString() });
+        if (insertError) throw new Error(insertError.message);
+
+        const { data, error: selectError } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', p.id)
+          .single();
+        if (selectError) throw new Error(selectError.message);
+        return rowToProject(data);
+      } catch (e) {
+        lastError = e instanceof Error ? e : new Error(String(e));
+        console.warn(`[projectService.create] attempt ${attempt} failed:`, lastError.message);
+        if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1500));
+      }
+    }
+    throw lastError ?? new Error('Failed to create project after 3 attempts');
   },
 
   async update(p: Project): Promise<void> {
     const row = projectToRow(p);
-const { error } = await supabase
+    const { error } = await supabase
       .from('projects')
       .update(row)
       .eq('id', p.id);
@@ -143,8 +148,15 @@ const { error } = await supabase
   },
 
   async delete(id: string): Promise<void> {
-    const { error } = await supabase.from('projects').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (!error) return;
+      lastError = new Error(error.message);
+      console.warn(`[projectService.delete] attempt ${attempt} failed:`, error.message);
+      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1500));
+    }
+    throw lastError ?? new Error('Failed to delete project');
   },
 
   async patch(
@@ -194,8 +206,6 @@ export const settingsService = {
       salesEmail: data.sales_email,
       sidebarIconBase64: data.sidebar_icon_base64,
       companyLogoBase64: data.company_logo_base64,
-      defaultReadinessCategories: data.readiness_template && data.readiness_template.length > 0 ? data.readiness_template : undefined,
-      globalSowSections: data.sow_sections_template && data.sow_sections_template.length > 0 ? data.sow_sections_template : undefined,
     };
   },
 
@@ -210,8 +220,6 @@ export const settingsService = {
       sales_email: s.salesEmail,
       sidebar_icon_base64: s.sidebarIconBase64,
       company_logo_base64: s.companyLogoBase64,
-      readiness_template: s.defaultReadinessCategories ?? [],
-      sow_sections_template: s.globalSowSections ?? [],
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error(error.message);

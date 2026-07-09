@@ -23,18 +23,19 @@ export const authService = {
   async getAppUser(): Promise<AppUser | null> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
+    return authService.getAppUserById(user.id, user.email ?? '');
+  },
 
+  async getAppUserById(userId: string, email: string): Promise<AppUser | null> {
     const { data, error } = await supabase
       .from('app_users')
       .select('id, username, role, phone')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
-
     if (error || !data) return null;
-
     return {
       id: data.id,
-      email: user.email ?? '',
+      email,
       username: data.username,
       role: data.role as UserRole,
       phone: data.phone,
