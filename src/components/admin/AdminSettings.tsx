@@ -41,7 +41,7 @@ const EMPTY_MODAL: UserModalState = {
 
 export const AdminSettings: React.FC<Props> = React.memo(function AdminSettings({
   settings, currentUser, onUpdateSettings,
-}) => {
+}) {
   const isAdmin = currentUser.role === 'admin';
   const [local, setLocal] = useState<GlobalSettings>({ ...settings });
   const [isSaving, setIsSaving] = useState(false);
