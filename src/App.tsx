@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Project, Tab, GlobalSettings, DeploymentType, AppUser } from './types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Project, Tab, GlobalSettings, DeploymentType } from './types';
 import { useAuth } from './hooks/useAuth';
 import { projectService, settingsService } from './services/projectService';
 import { authService } from './services/authService';
@@ -13,7 +13,7 @@ import { ProjectContacts } from './components/project/ProjectContacts';
 import { ProjectSOW } from './components/project/ProjectSOW';
 import { ProjectDashboard } from './components/project/ProjectDashboard';
 import { ProjectJobCosting } from './components/project/ProjectJobCosting';
-import { ProjectReadiness, DEFAULT_READINESS } from './components/project/ProjectReadiness';
+import { ProjectReadiness } from './components/project/ProjectReadiness';
 import { AdminSettings } from './components/admin/AdminSettings';
 import { LogAnalyzer } from './components/tracking/LogAnalyzer';
 import {
@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
 };
 
 export default function App() {
-  const { user, loading: authLoading, authError, signOut } = useAuth();
+  const { user, loading: authLoading, authError } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -56,7 +56,6 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState('');
-  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
 
   const [newProject, setNewProject] = useState({
     title: '',
@@ -70,19 +69,11 @@ export default function App() {
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
-  const hasLoadedRef = useRef(false);
-
-  // Reset load guard when user logs out so next login reloads fresh data
-  useEffect(() => { if (!user) hasLoadedRef.current = false; }, [user]);
-
   useEffect(() => {
-    // Only load once when user first logs in — ignore token refreshes
-    if (!user || hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
+    if (!user) return;
     setIsDataLoading(true);
-    Promise.all([projectService.list(), settingsService.load(), authService.listAppUsers()])
-      .then(([projs, settings, users]) => {
-        setAppUsers(users);
+    Promise.all([projectService.list(), settingsService.load()])
+      .then(([projs, settings]) => {
         setProjects(projs);
         if (projs.length > 0) setActiveProjectId(projs[0].id);
         setGlobalSettings(settings);
@@ -96,7 +87,23 @@ export default function App() {
   }, [user]);
 
   const handleUpdateProject = useCallback(async (updated: Project) => {
-setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    // Merge with current in-memory state to prevent tabs overwriting each other's data.
+    // This protects against stale closures in tab components.
+    setProjects((prev) => {
+      const current = prev.find(p => p.id === updated.id);
+      if (!current) return prev.map((p) => (p.id === updated.id ? updated : p));
+      // The incoming update wins for all its own fields, but we protect
+      // critical arrays that other tabs own by keeping whichever is longer/newer
+      const merged: Project = {
+        ...current,
+        ...updated,
+        contacts: updated.contacts?.length ? updated.contacts : current.contacts,
+        locations: updated.locations?.length ? updated.locations : current.locations,
+        milestones: updated.milestones?.length ? updated.milestones : current.milestones,
+        costingItems: updated.costingItems?.length ? updated.costingItems : current.costingItems,
+      };
+      return prev.map((p) => (p.id === updated.id ? merged : p));
+    });
     setIsSaving(true);
     try {
       await projectService.update(updated);
@@ -144,28 +151,12 @@ setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           description: 'Project start date.',
         },
       ],
-      readinessCategories: (globalSettings.defaultReadinessCategories ?? DEFAULT_READINESS).map(cat => ({
-        ...cat,
-        id: crypto.randomUUID(),
-        items: cat.items.map(item => ({ ...item, id: crypto.randomUUID(), isComplete: false, value: item.type !== 'checkbox' ? (item.value ?? '') : undefined }))
-      })),
-      contacts: appUsers.map(u => ({
-        id: crypto.randomUUID(),
-        side: 'internal' as const,
-        name: u.username,
-        role: u.role === 'admin' ? 'Admin' : 'Team Member',
-        email: u.email || '',
-        phone: u.phone || '',
-        location: '',
-        address: '',
-        notes: '',
-      })),
+      contacts: [],
       isClosed: false,
       isArchived: false,
       isExtended: false,
       surveyQuestions: [],
       sowCost: newProject.sowCost,
-      sowSections: globalSettings.globalSowSections?.length ? globalSettings.globalSowSections : undefined,
       hardwareNodes: [],
       customerSentiment: 'happy',
     };
@@ -336,7 +327,7 @@ setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
           </button>
 
           <button
-            onClick={signOut}
+            onClick={() => authService.signOut()}
             className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-500/10 w-full text-slate-600 hover:text-red-500 transition-all"
           >
             <LogOut size={18} />
@@ -429,7 +420,7 @@ setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
                   : <NoProjectSelected />
                 )}
                 {activeTab === 'stakeholders' && (activeProject
-                  ? <ProjectContacts project={activeProject} onUpdate={handleUpdateProject} appUsers={appUsers} />
+                  ? <ProjectContacts project={activeProject} onUpdate={handleUpdateProject} />
                   : <NoProjectSelected />
                 )}
                 {activeTab === 'timeline' && (activeProject
