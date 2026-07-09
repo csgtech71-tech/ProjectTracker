@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Project, GlobalSettings, SowSection } from '../../types';
 import { FileText, Save, Printer, Plus, Trash2, Edit3, X, GripVertical, Eye, Download, List, Target, Calendar, Users, Calculator, CheckCircle, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
