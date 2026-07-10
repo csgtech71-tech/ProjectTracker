@@ -40,6 +40,7 @@ function rowToProject(row: Record<string, unknown>): Project {
     hardwareNodes: (data.hardwareNodes as Project['hardwareNodes']) ?? [],
     readinessCategories: (data.readinessCategories as Project['readinessCategories']) ?? [],
     sowMeta: data.sowMeta as Project['sowMeta'] | undefined,
+    risks: (data.risks as Project['risks']) ?? [],
     customerSignature: data.customerSignature as string | undefined,
     ourSignature: data.ourSignature as string | undefined,
   };
@@ -56,7 +57,7 @@ function projectToRow(p: Project) {
     locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
     accomplishments, milestones, contacts, surveyQuestions,
     costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-    customerSignature, ourSignature, sowMeta,
+    customerSignature, ourSignature, sowMeta, risks,
     ...rest
   } = p;
 
@@ -84,7 +85,7 @@ function projectToRow(p: Project) {
       locations, revisions, customerSuccessCriteria, ourSuccessCriteria,
       accomplishments, milestones, contacts, surveyQuestions,
       costingItems, sowTOC, sowSections, hardwareNodes, readinessCategories,
-      customerSignature, ourSignature, sowMeta,
+      customerSignature, ourSignature, sowMeta, risks,
     },
   };
 }
