@@ -9,6 +9,7 @@ import { ProjectSummary } from './components/project/ProjectSummary';
 import { ProjectCalendar } from './components/project/ProjectCalendar';
 import { ProjectTracking } from './components/tracking/ProjectTracking';
 import { ProjectClosing } from './components/project/ProjectClosing';
+import { ProjectRisk } from './components/project/ProjectRisk';
 import { ProjectContacts } from './components/project/ProjectContacts';
 import { ProjectSOW } from './components/project/ProjectSOW';
 import { ProjectDashboard } from './components/project/ProjectDashboard';
@@ -36,6 +37,7 @@ import {
   Calculator,
   ClipboardList,
   ScanSearch,
+  BarChart2,
 } from 'lucide-react';
 
 const DEFAULT_SETTINGS: GlobalSettings = {
@@ -225,6 +227,7 @@ export default function App() {
     { id: 'costing', label: 'Costing', icon: Calculator },
     { id: 'sow', label: 'SOW', icon: FileText },
     { id: 'closure', label: 'Closure', icon: CheckCircle },
+    { id: 'risk', label: 'Risks', icon: BarChart2 },
     { id: 'analyzer', label: 'Analyzer', icon: ScanSearch },
   ];
 
@@ -435,6 +438,9 @@ export default function App() {
                 </div>
                 <div className={activeTab === 'closure' ? '' : 'hidden'}>
                   {activeProject ? <ProjectClosing project={activeProject} onUpdate={handleUpdateProject} /> : <NoProjectSelected />}
+                </div>
+                <div className={activeTab === 'risk' ? '' : 'hidden'}>
+                  {activeProject ? <ProjectRisk project={activeProject} onUpdate={handleUpdateProject} currentUser={user} /> : <NoProjectSelected />}
                 </div>
                 <div className={activeTab === 'analyzer' ? '' : 'hidden'}>
                   <LogAnalyzer currentUser={user} globalSettings={globalSettings} />

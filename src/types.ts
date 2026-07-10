@@ -9,7 +9,8 @@ export type Tab =
   | 'readiness'
   | 'closure'
   | 'settings'
-  | 'analyzer';
+  | 'analyzer'
+  | 'risk';
 
 export type Sentiment = 'happy' | 'disappointed' | 'sad' | 'angry';
 export type UserRole = 'admin' | 'user';
@@ -294,6 +295,7 @@ export interface Project {
   aiAnalysisSummary?: string;
   readinessCategories?: ReadinessCategory[];
   sowMeta?: SowMeta;
+  risks?: import('./components/project/ProjectRisk').Risk[];
   // DB timestamps
   created_at?: string;
   updated_at?: string;
