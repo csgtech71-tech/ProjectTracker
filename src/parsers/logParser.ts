@@ -67,6 +67,7 @@ function inferModule(msg: string): string {
   if (/configured for card-only|card-only mode/i.test(msg)) return 'crdHndlr';
   if (/Successful 1:N match/i.test(msg)) return 'SFM';
   if (/Error reading SFM|No SFM module|SFM not active/i.test(msg)) return 'SFM';
+  if (/Cannot perform SFM_read/i.test(msg)) return 'SFM';
   // RFID
   if (/RFID module/i.test(msg)) return 'rfid';
   // Network / MQTT
@@ -77,6 +78,16 @@ function inferModule(msg: string): string {
   if (/Restarting MQTT|MQTT startup task|Initializing new MQTT|mqttKeepalive/i.test(msg)) return 'MQTT';
   if (/MQTT_EVENT_SUBSCRIBED/i.test(msg)) return 'MQTT';
   if (/leaving state:.*azure|Timeout while acquiring UI semaphore/i.test(msg)) return 'MQTT';
+  // Offline access events
+  if (/authorized offline UserID scan|Authorized offline opening|Unexpected offline opening|Offline door open alert|closed offline at time/i.test(msg)) return 'offlineAccess';
+  // Door held open
+  if (/Safe buzzer sounding/i.test(msg)) return 'doorBuzzer';
+  // MQTT backoff
+  if (/Backing off for \d+ms/i.test(msg)) return 'MQTT';
+  // Transmission failure
+  if (/Transmission of log event failed/i.test(msg)) return 'MQTT';
+  // Cancel/backspace key
+  if (/User pressed \[X\]|User pressed \[<-\]/i.test(msg)) return 'crdHndlr';
   // Offline log markers
   if (/=== OFFLINE LOGS (START|END)/i.test(msg)) return 'offlineLog';
   // System / health
@@ -236,6 +247,10 @@ function processDeviceEvents(
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_disconnect', module, details: message, raw_line: e.raw });
       else if (/Missed more than/i.test(message))
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'watchdog_reconnect', module, details: message, raw_line: e.raw });
+      else if (/Backing off for/i.test(message))
+        systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_backoff', module, details: message, raw_line: e.raw });
+      else if (/Transmission of log event failed/i.test(message))
+        systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'transmission_failure', module, details: message, raw_line: e.raw });
       // MQTT_EVENT_SUBSCRIBED and mqttKeepalive are noise — skip
       continue;
     }
@@ -284,6 +299,36 @@ function processDeviceEvents(
 
     if (module === 'offlineLog') {
       systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'offline_log_marker', module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'offlineAccess') {
+      const isUnexpected = /Unexpected offline opening/i.test(message);
+      const isAuthorizedScan = /authorized offline UserID scan/i.test(message);
+      const isAuthorizedOpen = /Authorized offline opening/i.test(message);
+      const isAlert = /Offline door open alert/i.test(message);
+      const isClosed = /closed offline at time/i.test(message);
+      const evtType = isUnexpected ? 'offline_unauthorized' :
+                      isAuthorizedScan ? 'offline_access_scan' :
+                      isAuthorizedOpen ? 'offline_access_open' :
+                      isAlert ? 'offline_access_alert' :
+                      isClosed ? 'offline_door_close' : 'offline_access';
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: evtType, module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'doorBuzzer') {
+      const isAlarm = /doorHeldOpenAlarm/i.test(message);
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: isAlarm ? 'door_held_alarm' : 'door_held_warning', module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'SFM' && /Cannot perform SFM_read/i.test(message)) {
+      // Deduplicate SFM flood — only record first occurrence per boot
+      const lastSfm = systemEvents.filter(ev => ev.event_type === 'sfm_error' && ev.device_id === deviceId).pop();
+      if (!lastSfm || (new Date(e.timestamp).getTime() - new Date(lastSfm.occurred_at).getTime()) > 60000) {
+        systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'sfm_error', module, details: 'SFM read errors (deduplicated)', raw_line: e.raw });
+      }
       continue;
     }
 
@@ -457,22 +502,37 @@ function buildIncompleteOrFailed(
 
 function detectAuthType(se: RawEvent[]): HardwareAuthType {
   const has = (p: (e: RawEvent) => boolean) => se.some(p);
-  const hasCard    = has(e => e.module === 'wiegand' && /card tapped/i.test(e.message));
-  const hasFP      = has(e => e.module === 'SFM' && /match/i.test(e.message));
-  const has1to1    = has(e => e.module === 'crdHndlr' && /1:1 fingerprint/i.test(e.message));
-  const hasPIN     = has(e => e.module === 'crdHndlr' && /PIN digit|entered a PIN|PIN is correct|PIN timing/i.test(e.message));
-  const hasUserId  = has(e => e.module === 'crdHndlr' && /UserID entered/i.test(e.message));
-  const hasCache   = has(e => /local cache.*PIN/i.test(e.message));
+  const hasCard     = has(e => e.module === 'wiegand' && /card tapped/i.test(e.message));
+  const hasUnknownCard = has(e => /unknown card from Door/i.test(e.message));
+  const hasFP       = has(e => e.module === 'SFM' && /match/i.test(e.message));
+  const has1to1     = has(e => e.module === 'crdHndlr' && /1:1 fingerprint/i.test(e.message));
+  const hasPIN      = has(e => e.module === 'crdHndlr' && /PIN digit|entered a PIN|PIN is correct|PIN timing/i.test(e.message));
+  const hasUserId   = has(e => e.module === 'crdHndlr' && /UserID entered/i.test(e.message));
+  const hasCache    = has(e => /local cache.*PIN/i.test(e.message));
+  // "No PIN: HEXID" = credential resolved on cardPinMode=0 device (PIN was the credential, no physical card)
+  const hasNoPinId  = has(e => e.module === 'crdHndlr' && /^No PIN:/i.test(e.message));
 
+  // Fingerprint combos
   if (!hasCard && hasFP) return 'Fingerprint Only';
-  if (hasCard && hasFP && hasPIN && hasUserId) return 'Card/User Id + Fingerprint (Pin Fallback)';
+  if (hasCard && hasFP && hasPIN && hasUserId) return 'Card/User Id + Fingerprint (Pin Fallback)'
+  | 'Pin Only';
   if (hasCard && hasFP && hasUserId) return 'Card/User Id/Fingerprint';
   if (hasCard && has1to1 && hasUserId) return 'Card/User Id + Fingerprint';
+
+  // Card + PIN combos
   if (hasCard && hasPIN && hasUserId) return 'Card/User Id + Pin';
   if (hasCard && hasPIN) return 'Card + Pin';
-  // CSV PIN-only flow: digits → UserID entered → cache check → PIN
+
+  // Card only (any bit width, known or unknown card type)
+  if (hasCard || hasUnknownCard) return 'Card Only';
+
+  // PIN-only device (cardPinMode=0): user enters PIN digits, resolves to credential ID
+  // "No PIN: HEXID" is the device's way of saying the credential resolved without a physical card
+  if (hasPIN && hasNoPinId) return 'Pin Only';
+
+  // CSV PIN-only flow with UserID (older firmware)
   if (!hasCard && hasPIN && (hasUserId || hasCache)) return 'Card/User Id + Pin';
-  if (hasCard) return 'Card Only';
+
   return 'Card + Pin';
 }
 
