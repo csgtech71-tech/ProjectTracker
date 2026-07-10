@@ -59,19 +59,37 @@ function inferModule(msg: string): string {
   if (/Setting the GPIO signal to lock/i.test(msg)) return 'doorRelay';
   if (/Door \d+ was (opened|closed)/i.test(msg)) return 'doorSensor';
   if (/Verifying that door was|All sensor checks verified/i.test(msg)) return 'doorSensor';
-  if (/PIN digit|PIN is correct|PIN timing|Prompting.*PIN|entered a PIN/i.test(msg)) return 'crdHndlr';
+  if (/PIN digit|PIN is correct|PIN timing|Prompting.*PIN|entered a PIN|No PIN:/i.test(msg)) return 'crdHndlr';
   if (/UserID entered|cloud authorized|authorized the card|local cache.*PIN|Uploading credentials/i.test(msg)) return 'crdHndlr';
   if (/1:1 fingerprint|authorized fingerprint|denied|timed out/i.test(msg)) return 'crdHndlr';
   if (/The user pressed \[/i.test(msg)) return 'crdHndlr';
   if (/This card is in our local cache/i.test(msg)) return 'crdHndlr';
+  if (/configured for card-only|card-only mode/i.test(msg)) return 'crdHndlr';
   if (/Successful 1:N match/i.test(msg)) return 'SFM';
-  // Network
-  if (/MQTT|Disconnected|connection lost|Connected successfully|Missed more than/i.test(msg)) return 'MQTT';
+  if (/Error reading SFM|No SFM module|SFM not active/i.test(msg)) return 'SFM';
+  // RFID
+  if (/RFID module/i.test(msg)) return 'rfid';
+  // Network / MQTT
+  if (/No MQTT connection|running in off-line mode/i.test(msg)) return 'MQTT';
+  if (/Disconnected from the MQTT|MQTT connection lost/i.test(msg)) return 'MQTT';
+  if (/Connected successfully to MQTT|Connected to the MQTT Server/i.test(msg)) return 'MQTT';
+  if (/Missed more than/i.test(msg)) return 'MQTT';
+  if (/Restarting MQTT|MQTT startup task|Initializing new MQTT|mqttKeepalive/i.test(msg)) return 'MQTT';
+  if (/MQTT_EVENT_SUBSCRIBED/i.test(msg)) return 'MQTT';
+  if (/leaving state:.*azure|Timeout while acquiring UI semaphore/i.test(msg)) return 'MQTT';
+  // Offline log markers
+  if (/=== OFFLINE LOGS (START|END)/i.test(msg)) return 'offlineLog';
   // System / health
   if (/BOOTED|error reboots|Last boot was|Rebooted \d+ times/i.test(msg)) return 'stats';
   if (/Restarting/i.test(msg)) return 'watchdog';
-  if (/FIELD SUPPORT DATA|Gathering tech support|Firmware |IP address is|Network is via|Wifi signal|cert expires|Local cache has|Configured for/i.test(msg)) return 'stats';
+  if (/FIELD SUPPORT DATA|Gathering tech support/i.test(msg)) return 'stats';
+  if (/Firmware |IP address is|Network is via|Wifi signal|cert expires|Local cache has/i.test(msg)) return 'stats';
+  if (/Booted \d+ seconds ago/i.test(msg)) return 'stats';
+  if (/Heap memory is low/i.test(msg)) return 'health';
+  if (/Minimum PIN length cannot be/i.test(msg)) return 'config';
   if (/FAILURE/i.test(msg)) return 'eventLog';
+  // Device config (boot-time hardware/config messages)
+  if (/Configured for cardPinMode|Skipping Facility Codes|Buzzer set for|Storage:|invertLED|flippedCabinet|doorEnabled|cabinetMode|LCD is present|X509 cert expires/i.test(msg)) return 'deviceConfig';
   // Config / sync
   if (/Setting NVS config|Configuring|Received a config|Sending value for key|rfidEnabled|Deleting config key/i.test(msg)) return 'config';
   if (/cloudSync|Processed a new cloudSync/i.test(msg)) return 'sync';
@@ -172,6 +190,7 @@ export function parseLogFile(text: string, filename?: string): ParseResult {
       if (e.module !== 'stats') continue;
       if (e.message.includes('Configured for')) configuredAuthType = e.message.replace('Configured for ', '').trim();
       const fwM = e.message.match(/Firmware ([\d.]+)/); if (fwM) firmware = fwM[1];
+      const fwM2 = e.message.match(/Firmware ([\d.]+),/); if (fwM2) firmware = fwM2[1];
       const ipM = e.message.match(/IP address is ([\d.]+)/); if (ipM) ipAddress = ipM[1];
       const ssM = e.message.match(/Network is via Wifi \(SSID\d+ \/ ([^)]+)\)/); if (ssM) wifiSsid = ssM[1];
       const rsM = e.message.match(/Wifi signal strength is (-\d+)dBm/); if (rsM) wifiSignalDbm = parseInt(rsM[1]);
@@ -203,12 +222,21 @@ function processDeviceEvents(
     // ── SYSTEM EVENTS ────────────────────────────────────────────────────────
 
     if (module === 'MQTT') {
-      if (/Disconnected|connection lost|transmission failed/i.test(message))
+      if (/Disconnected from the MQTT|MQTT connection lost/i.test(message))
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_disconnect', module, details: message, raw_line: e.raw });
-      else if (/Connected successfully/i.test(message))
+      else if (/Connected successfully to MQTT|Connected to the MQTT Server/i.test(message))
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_connect', module, details: message, raw_line: e.raw });
+      else if (/No MQTT connection|running in off-line mode/i.test(message))
+        systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_offline', module, details: message, raw_line: e.raw });
+      else if (/Restarting MQTT|MQTT startup task|Initializing new MQTT/i.test(message))
+        systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_reconnect', module, details: message, raw_line: e.raw });
+      else if (/Timeout while acquiring UI semaphore/i.test(message))
+        systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_timeout', module, details: message, raw_line: e.raw });
+      else if (/MQTT connection lost|leaving state:/i.test(message))
+        systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'mqtt_disconnect', module, details: message, raw_line: e.raw });
       else if (/Missed more than/i.test(message))
         systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'watchdog_reconnect', module, details: message, raw_line: e.raw });
+      // MQTT_EVENT_SUBSCRIBED and mqttKeepalive are noise — skip
       continue;
     }
 
@@ -238,7 +266,35 @@ function processDeviceEvents(
     }
 
     if (module === 'config') {
-      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'config_change', module, details: message, raw_line: e.raw });
+      const evtType = /Minimum PIN length/i.test(message) ? 'config_warning' : 'config_change';
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: evtType, module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'deviceConfig') {
+      // Boot-time hardware/config messages — group as device_config events
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'device_config', module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'health') {
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'memory_warning', module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'offlineLog') {
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'offline_log_marker', module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'rfid') {
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: 'device_config', module, details: message, raw_line: e.raw });
+      continue;
+    }
+
+    if (module === 'SFM' && /Error reading SFM|No SFM module|SFM not active/i.test(message)) {
+      const evtType = /Error reading/i.test(message) ? 'hardware_error' : 'device_config';
+      systemEvents.push({ device_id: deviceId, occurred_at: e.timestamp.toISOString(), event_type: evtType, module, details: message, raw_line: e.raw });
       continue;
     }
 
@@ -301,12 +357,16 @@ function processDeviceEvents(
         }
       }
 
+      // Extract No PIN user ID if present
+      const noPinEvent = sessionEvents.find(se => /^No PIN:/i.test(se.message));
+      const noPinMatch = noPinEvent?.message.match(/No PIN:\s*(\d+)/i);
+
       accessEvents.push({
         device_id: deviceId,
         occurred_at: sessionEvents[0].timestamp.toISOString(),
         auth_type: detectAuthType(sessionEvents),
         result: 'success',
-        user_id_raw: extractUserId(sessionEvents),
+        user_id_raw: extractUserId(sessionEvents) || noPinMatch?.[1],
         card_bits: extractCardBits(sessionEvents),
         door_id: doorId,
         door_open_at: doorOpenAt,
@@ -316,6 +376,30 @@ function processDeviceEvents(
           : undefined,
       });
       sessionStart = -1;
+      continue;
+    }
+
+    // Card-only device received PIN attempt — wrong auth method
+    if (module === 'crdHndlr' && /configured for card-only/i.test(message)) {
+      accessEvents.push({
+        device_id: deviceId,
+        occurred_at: e.timestamp.toISOString(),
+        auth_type: 'Card Only',
+        result: 'failure',
+        failure_reason: 'Wrong auth method: device is card-only, PIN was attempted',
+      });
+      sessionStart = -1;
+      continue;
+    }
+
+    // No PIN message — extract user ID for card-only access
+    if (module === 'crdHndlr' && /^No PIN:/i.test(message) && sessionStart >= 0) {
+      const idMatch = message.match(/No PIN:\s*(\d+)/i);
+      if (idMatch) {
+        // Store for use by the unlock event
+        const sessionEvents = events.slice(sessionStart);
+        sessionEvents.forEach(se => { (se as any)._noPinUserId = idMatch[1]; });
+      }
       continue;
     }
 
