@@ -48,6 +48,10 @@ interface DisplayToggles {
   showHealthchecks: boolean;
   showCloudSync: boolean;
   showConfigChanges: boolean;
+  showDeviceConfig: boolean;
+  showMemoryWarnings: boolean;
+  showOfflineMarkers: boolean;
+  showHardwareErrors: boolean;
 }
 
 const DEFAULT_TOGGLES: DisplayToggles = {
@@ -62,6 +66,10 @@ const DEFAULT_TOGGLES: DisplayToggles = {
   showHealthchecks: false,
   showCloudSync: false,
   showConfigChanges: false,
+  showDeviceConfig: false,
+  showMemoryWarnings: true,
+  showOfflineMarkers: true,
+  showHardwareErrors: true,
 };
 
 const AUTH_COLORS: Record<string, string> = {
@@ -256,13 +264,19 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
   const sysAnalytics = useMemo(() => {
     const reboots = allSystem.filter(e => ['reboot_normal', 'reboot_error', 'reboot_watchdog'].includes(e.event_type));
     const errorReboots = reboots.filter(e => e.event_type === 'reboot_error');
-    const mqttEvents = allSystem.filter(e => ['mqtt_connect', 'mqtt_disconnect'].includes(e.event_type))
+    const mqttEvents = allSystem.filter(e => ['mqtt_connect', 'mqtt_disconnect', 'mqtt_offline', 'mqtt_reconnect', 'mqtt_timeout'].includes(e.event_type))
       .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
-    const mqttDrops = mqttEvents.filter(e => e.event_type === 'mqtt_disconnect');
+    const mqttDrops = mqttEvents.filter(e => ['mqtt_disconnect', 'mqtt_offline'].includes(e.event_type));
+    const mqttTimeouts = allSystem.filter(e => e.event_type === 'mqtt_timeout');
     const healthchecks = allSystem.filter(e => e.event_type === 'healthcheck');
     const cloudSyncs = allSystem.filter(e => e.event_type === 'cloud_sync');
     const syncSkips = allSystem.filter(e => e.event_type === 'sync_skipped');
     const configChanges = allSystem.filter(e => e.event_type === 'config_change');
+    const configWarnings = allSystem.filter(e => e.event_type === 'config_warning');
+    const deviceConfigs = allSystem.filter(e => e.event_type === 'device_config');
+    const memoryWarnings = allSystem.filter(e => e.event_type === 'memory_warning');
+    const offlineMarkers = allSystem.filter(e => e.event_type === 'offline_log_marker');
+    const hardwareErrors = allSystem.filter(e => e.event_type === 'hardware_error');
 
     // Compute per-device uptime
     const uptimeByDevice: Record<string, ReturnType<typeof computeUptime>> = {};
@@ -271,7 +285,7 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
       if (result) uptimeByDevice[d.id] = result;
     }
 
-    return { reboots, errorReboots, mqttDrops, mqttEvents, healthchecks, cloudSyncs, syncSkips, configChanges, uptimeByDevice };
+    return { reboots, errorReboots, mqttDrops, mqttEvents, mqttTimeouts, healthchecks, cloudSyncs, syncSkips, configChanges, configWarnings, deviceConfigs, memoryWarnings, offlineMarkers, hardwareErrors, uptimeByDevice };
   }, [allSystem, devices]);
 
   const deviceName = (id: string) => {
@@ -415,6 +429,10 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
               <Toggle label="Health Checks" enabled={toggles.showHealthchecks} onChange={setToggle('showHealthchecks')} />
               <Toggle label="Cloud Sync Events" enabled={toggles.showCloudSync} onChange={setToggle('showCloudSync')} />
               <Toggle label="Config Changes" enabled={toggles.showConfigChanges} onChange={setToggle('showConfigChanges')} />
+              <Toggle label="Device Config (Boot)" enabled={toggles.showDeviceConfig} onChange={setToggle('showDeviceConfig')} />
+              <Toggle label="Memory Warnings" enabled={toggles.showMemoryWarnings} onChange={setToggle('showMemoryWarnings')} />
+              <Toggle label="Offline Log Markers" enabled={toggles.showOfflineMarkers} onChange={setToggle('showOfflineMarkers')} />
+              <Toggle label="Hardware Errors" enabled={toggles.showHardwareErrors} onChange={setToggle('showHardwareErrors')} />
             </div>
           </div>
         </div>
@@ -722,7 +740,7 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
           )}
 
           {toggles.showMqttEvents && sysAnalytics.mqttDrops.length > 0 && (
-            <Section title="MQTT / Network Events" badge={`${sysAnalytics.mqttDrops.length} disconnects`} badgeColor="bg-amber-100 text-amber-700" defaultOpen={false}>
+            <Section title="MQTT / Network Events" badge={`${sysAnalytics.mqttDrops.length} disconnects${sysAnalytics.mqttTimeouts.length > 0 ? ` · ${sysAnalytics.mqttTimeouts.length} timeouts` : ''}`} badgeColor="bg-amber-100 text-amber-700" defaultOpen={false}>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="text-left text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100"><th className="pb-3 pr-4">Time</th><th className="pb-3 pr-4">Device</th><th className="pb-3 pr-4">Event</th><th className="pb-3">Details</th></tr></thead>
@@ -731,7 +749,7 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
                       <tr key={i} className={e.event_type === 'mqtt_disconnect' ? 'bg-red-50/40' : ''}>
                         <td className="py-2.5 pr-4 font-mono text-slate-500">{fmtDate(e.occurred_at)}</td>
                         <td className="py-2.5 pr-4 font-bold text-slate-700">{deviceName(e.device_id)}</td>
-                        <td className="py-2.5 pr-4"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${e.event_type === 'mqtt_disconnect' ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-700'}`}>{e.event_type === 'mqtt_disconnect' ? 'Disconnect' : 'Connect'}</span></td>
+                        <td className="py-2.5 pr-4"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${e.event_type === 'mqtt_disconnect' || e.event_type === 'mqtt_offline' ? 'bg-red-100 text-red-600' : e.event_type === 'mqtt_timeout' ? 'bg-purple-100 text-purple-700' : e.event_type === 'mqtt_reconnect' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{e.event_type === 'mqtt_disconnect' ? 'Disconnect' : e.event_type === 'mqtt_offline' ? 'Offline' : e.event_type === 'mqtt_reconnect' ? 'Reconnect' : e.event_type === 'mqtt_timeout' ? 'Timeout' : 'Connect'}</span></td>
                         <td className="py-2.5 text-slate-400">{e.details}</td>
                       </tr>
                     ))}
@@ -829,6 +847,79 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
             </Section>
           )}
 
+          {/* Hardware Errors */}
+          {toggles.showHardwareErrors && sysAnalytics.hardwareErrors.length > 0 && (
+            <Section title="Hardware Errors" badge={`${sysAnalytics.hardwareErrors.length}`} badgeColor="bg-red-100 text-red-600" defaultOpen={true}>
+              <div className="space-y-2">
+                {sysAnalytics.hardwareErrors.map((e, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-red-50 border border-red-100 rounded-xl">
+                    <AlertTriangle size={14} className="text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-mono text-slate-500">{fmtDate(e.occurred_at)} · {deviceName(e.device_id)}</p>
+                      <p className="text-sm text-red-700 font-bold mt-0.5">{e.details}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Memory Warnings */}
+          {toggles.showMemoryWarnings && sysAnalytics.memoryWarnings.length > 0 && (
+            <Section title="Memory Warnings" badge={`${sysAnalytics.memoryWarnings.length}`} badgeColor="bg-amber-100 text-amber-700" defaultOpen={true}>
+              <div className="space-y-2">
+                {sysAnalytics.memoryWarnings.map((e, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                    <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-mono text-slate-500">{fmtDate(e.occurred_at)} · {deviceName(e.device_id)}</p>
+                      <p className="text-sm text-amber-700 font-medium mt-0.5">{e.details}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Offline Log Markers */}
+          {toggles.showOfflineMarkers && sysAnalytics.offlineMarkers.length > 0 && (
+            <Section title="Offline Log Periods" badge={`${Math.floor(sysAnalytics.offlineMarkers.length / 2)} period${Math.floor(sysAnalytics.offlineMarkers.length / 2) !== 1 ? 's' : ''}`} badgeColor="bg-slate-100 text-slate-600" defaultOpen={true}>
+              <p className="text-xs text-slate-500 mb-4">Events logged while device had no MQTT connection — replayed when connectivity restored.</p>
+              <div className="space-y-2">
+                {sysAnalytics.offlineMarkers.map((e, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${e.details.includes('START') ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {e.details.includes('START') ? 'Start' : 'End'}
+                    </span>
+                    <p className="text-xs font-mono text-slate-500">{fmtDate(e.occurred_at)}</p>
+                    <p className="text-xs text-slate-500">{deviceName(e.device_id)}</p>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Device Config */}
+          {toggles.showDeviceConfig && sysAnalytics.deviceConfigs.length > 0 && (
+            <Section title="Device Configuration (Boot)" badge={`${sysAnalytics.deviceConfigs.length}`} defaultOpen={false}>
+              <p className="text-xs text-slate-500 mb-4">Hardware capabilities and configuration reported at boot time.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead><tr className="text-left text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100"><th className="pb-3 pr-4">Time</th><th className="pb-3 pr-4">Device</th><th className="pb-3">Detail</th></tr></thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {sysAnalytics.deviceConfigs.map((e, i) => (
+                      <tr key={i}>
+                        <td className="py-2 pr-4 font-mono text-slate-500">{fmtDate(e.occurred_at)}</td>
+                        <td className="py-2 pr-4 font-bold text-slate-700">{deviceName(e.device_id)}</td>
+                        <td className="py-2 text-slate-600">{e.details}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
+          )}
+
           {/* Loaded Files */}
           <Section title={`Loaded Files (${imports.length})`} defaultOpen={false}>
             <div className="space-y-2">
@@ -886,6 +977,10 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
                   { key: 'showHealthchecks', label: `Health Checks (${sysAnalytics.healthchecks.length})` },
                   { key: 'showCloudSync', label: `Cloud Sync (${sysAnalytics.cloudSyncs.length + sysAnalytics.syncSkips.length} events)` },
                   { key: 'showConfigChanges', label: `Config Changes (${sysAnalytics.configChanges.length})` },
+                  { key: 'showHardwareErrors', label: `Hardware Errors (${sysAnalytics.hardwareErrors.length})` },
+                  { key: 'showMemoryWarnings', label: `Memory Warnings (${sysAnalytics.memoryWarnings.length})` },
+                  { key: 'showOfflineMarkers', label: `Offline Log Periods (${Math.floor(sysAnalytics.offlineMarkers.length / 2)})` },
+                  { key: 'showDeviceConfig', label: `Device Config Boot (${sysAnalytics.deviceConfigs.length})` },
                 ].filter(item => {
                   // only show items that have data
                   if (item.key === 'showMqttEvents' && sysAnalytics.mqttDrops.length === 0) return false;
@@ -893,6 +988,10 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
                   if (item.key === 'showHealthchecks' && sysAnalytics.healthchecks.length === 0) return false;
                   if (item.key === 'showCloudSync' && sysAnalytics.cloudSyncs.length === 0 && sysAnalytics.syncSkips.length === 0) return false;
                   if (item.key === 'showConfigChanges' && sysAnalytics.configChanges.length === 0) return false;
+                  if (item.key === 'showHardwareErrors' && sysAnalytics.hardwareErrors.length === 0) return false;
+                  if (item.key === 'showMemoryWarnings' && sysAnalytics.memoryWarnings.length === 0) return false;
+                  if (item.key === 'showOfflineMarkers' && sysAnalytics.offlineMarkers.length === 0) return false;
+                  if (item.key === 'showDeviceConfig' && sysAnalytics.deviceConfigs.length === 0) return false;
                   return true;
                 }).map(item => (
                   <label key={item.key} className="flex items-center gap-2 cursor-pointer">
