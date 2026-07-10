@@ -207,25 +207,6 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  // Keepalive — pings Supabase on an interval to prevent free-tier pause
-  useEffect(() => {
-    if (!globalSettings.keepaliveEnabled) return;
-    // Ping every 4 days (345600000 ms) — well within the 7-day pause window
-    const INTERVAL = 4 * 24 * 60 * 60 * 1000;
-    const ping = async () => {
-      try {
-        await supabase.from('global_settings').select('id').limit(1);
-        console.log('[keepalive] Supabase ping sent:', new Date().toLocaleString());
-      } catch (e) {
-        console.warn('[keepalive] ping failed:', e);
-      }
-    };
-    // Ping immediately on enable, then on interval
-    ping();
-    const timer = setInterval(ping, INTERVAL);
-    return () => clearInterval(timer);
-  }, [globalSettings.keepaliveEnabled]);
-
   const handleUpdateSettings = useCallback(async (settings: GlobalSettings) => {
     setGlobalSettings(settings);
     try {
