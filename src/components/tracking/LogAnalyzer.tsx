@@ -52,6 +52,10 @@ interface DisplayToggles {
   showMemoryWarnings: boolean;
   showOfflineMarkers: boolean;
   showHardwareErrors: boolean;
+  showDoorHeldOpen: boolean;
+  showOfflineAccess: boolean;
+  showSfmErrors: boolean;
+  showMqttBackoff: boolean;
 }
 
 const DEFAULT_TOGGLES: DisplayToggles = {
@@ -70,6 +74,10 @@ const DEFAULT_TOGGLES: DisplayToggles = {
   showMemoryWarnings: true,
   showOfflineMarkers: true,
   showHardwareErrors: true,
+  showDoorHeldOpen: true,
+  showOfflineAccess: true,
+  showSfmErrors: true,
+  showMqttBackoff: false,
 };
 
 const AUTH_COLORS: Record<string, string> = {
@@ -285,7 +293,15 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
       if (result) uptimeByDevice[d.id] = result;
     }
 
-    return { reboots, errorReboots, mqttDrops, mqttEvents, mqttTimeouts, healthchecks, cloudSyncs, syncSkips, configChanges, configWarnings, deviceConfigs, memoryWarnings, offlineMarkers, hardwareErrors, uptimeByDevice };
+
+    const mqttBackoffs = allSystem.filter(e => e.event_type === 'mqtt_backoff');
+    const transmissionFailures = allSystem.filter(e => e.event_type === 'transmission_failure');
+    const doorHeldWarnings = allSystem.filter(e => e.event_type === 'door_held_warning');
+    const doorHeldAlarms = allSystem.filter(e => e.event_type === 'door_held_alarm');
+    const sfmErrors = allSystem.filter(e => e.event_type === 'sfm_error');
+    const offlineAccess = allSystem.filter(e => ['offline_access_scan','offline_access_open','offline_access_alert','offline_door_close'].includes(e.event_type));
+    const offlineUnauthorized = allSystem.filter(e => e.event_type === 'offline_unauthorized');
+    return { reboots, errorReboots, mqttDrops, mqttEvents, mqttTimeouts, mqttBackoffs, transmissionFailures, healthchecks, cloudSyncs, syncSkips, configChanges, configWarnings, deviceConfigs, memoryWarnings, offlineMarkers, hardwareErrors, doorHeldWarnings, doorHeldAlarms, sfmErrors, offlineAccess, offlineUnauthorized, uptimeByDevice };
   }, [allSystem, devices]);
 
   const deviceName = (id: string) => {
@@ -433,6 +449,10 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
               <Toggle label="Memory Warnings" enabled={toggles.showMemoryWarnings} onChange={setToggle('showMemoryWarnings')} />
               <Toggle label="Offline Log Markers" enabled={toggles.showOfflineMarkers} onChange={setToggle('showOfflineMarkers')} />
               <Toggle label="Hardware Errors" enabled={toggles.showHardwareErrors} onChange={setToggle('showHardwareErrors')} />
+              <Toggle label="Door Held Open" enabled={toggles.showDoorHeldOpen} onChange={setToggle('showDoorHeldOpen')} />
+              <Toggle label="Offline Access Events" enabled={toggles.showOfflineAccess} onChange={setToggle('showOfflineAccess')} />
+              <Toggle label="SFM Errors" enabled={toggles.showSfmErrors} onChange={setToggle('showSfmErrors')} />
+              <Toggle label="MQTT Backoff" enabled={toggles.showMqttBackoff} onChange={setToggle('showMqttBackoff')} />
             </div>
           </div>
         </div>
@@ -847,6 +867,110 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
             </Section>
           )}
 
+          {/* Offline Unauthorized Access — SECURITY ALERT */}
+          {sysAnalytics.offlineUnauthorized.length > 0 && (
+            <Section title="⚠ Unauthorized Offline Access" badge={`${sysAnalytics.offlineUnauthorized.length} event${sysAnalytics.offlineUnauthorized.length !== 1 ? 's' : ''}`} badgeColor="bg-red-600 text-white" defaultOpen={true}>
+              <p className="text-xs text-red-600 font-bold mb-4">The safe was opened offline without an authorized credential. These events require immediate investigation.</p>
+              <div className="space-y-2">
+                {sysAnalytics.offlineUnauthorized.map((e, i) => (
+                  <div key={i} className="flex items-start gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                    <AlertTriangle size={16} className="text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-mono text-slate-500">{fmtDate(e.occurred_at)} · {deviceName(e.device_id)}</p>
+                      <p className="text-sm text-red-700 font-black mt-0.5">{e.details}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Offline Access Events */}
+          {toggles.showOfflineAccess && (sysAnalytics.offlineAccess.length > 0) && (
+            <Section title="Offline Access Events" badge={`${sysAnalytics.offlineAccess.length}`} badgeColor="bg-amber-100 text-amber-700" defaultOpen={true}>
+              <p className="text-xs text-slate-500 mb-4">Access events that occurred while the device had no MQTT connection. Replayed when connectivity was restored.</p>
+              <div className="space-y-2">
+                {sysAnalytics.offlineAccess.map((e, i) => {
+                  const isScan = e.event_type === 'offline_access_scan';
+                  const isOpen = e.event_type === 'offline_access_open';
+                  const isAlert = e.event_type === 'offline_access_alert';
+                  const isClose = e.event_type === 'offline_door_close';
+                  return (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded shrink-0 ${isScan ? 'bg-blue-100 text-blue-700' : isOpen ? 'bg-emerald-100 text-emerald-700' : isAlert ? 'bg-amber-200 text-amber-800' : 'bg-slate-100 text-slate-600'}`}>
+                        {isScan ? 'Scan' : isOpen ? 'Open' : isAlert ? 'Alert' : 'Close'}
+                      </span>
+                      <p className="text-xs font-mono text-slate-500 shrink-0">{fmtDate(e.occurred_at)}</p>
+                      <p className="text-xs text-slate-600 truncate">{e.details}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
+          {/* Door Held Open */}
+          {toggles.showDoorHeldOpen && (sysAnalytics.doorHeldWarnings.length > 0 || sysAnalytics.doorHeldAlarms.length > 0) && (
+            <Section title="Door Held Open Events" badge={`${sysAnalytics.doorHeldAlarms.length} alarms · ${sysAnalytics.doorHeldWarnings.length} warnings`} badgeColor={sysAnalytics.doorHeldAlarms.length > 0 ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"} defaultOpen={false}>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-amber-50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-black text-amber-600">{sysAnalytics.doorHeldWarnings.length}</p>
+                  <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Warnings</p>
+                </div>
+                <div className="bg-red-50 rounded-xl p-4 text-center">
+                  <p className="text-2xl font-black text-red-600">{sysAnalytics.doorHeldAlarms.length}</p>
+                  <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Alarms</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">Door held open warnings and alarms are deduplicated — only unique alarm events shown individually.</p>
+              {sysAnalytics.doorHeldAlarms.map((e, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-xl mt-2">
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-red-200 text-red-700 shrink-0">Alarm</span>
+                  <p className="text-xs font-mono text-slate-500">{fmtDate(e.occurred_at)}</p>
+                  <p className="text-xs text-slate-500">{deviceName(e.device_id)}</p>
+                </div>
+              ))}
+            </Section>
+          )}
+
+          {/* SFM Errors */}
+          {toggles.showSfmErrors && sysAnalytics.sfmErrors.length > 0 && (
+            <Section title="SFM Errors" badge={`${sysAnalytics.sfmErrors.length} burst${sysAnalytics.sfmErrors.length !== 1 ? 's' : ''}`} badgeColor="bg-orange-100 text-orange-700" defaultOpen={true}>
+              <p className="text-xs text-slate-500 mb-4">SFM (fingerprint module) read errors, deduplicated — each entry represents a burst of errors from a single event. Common after reboot when SFM is not present or not active.</p>
+              <div className="space-y-2">
+                {sysAnalytics.sfmErrors.map((e, i) => (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl">
+                    <AlertTriangle size={14} className="text-orange-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-mono text-slate-500">{fmtDate(e.occurred_at)} · {deviceName(e.device_id)}</p>
+                      <p className="text-sm text-orange-700 font-medium mt-0.5">{e.details}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* MQTT Backoff */}
+          {toggles.showMqttBackoff && sysAnalytics.mqttBackoffs.length > 0 && (
+            <Section title="MQTT Reconnect Backoffs" badge={`${sysAnalytics.mqttBackoffs.length}`} defaultOpen={false}>
+              <p className="text-xs text-slate-500 mb-4">Exponential backoff delays before MQTT reconnect attempts. Increasing backoff values indicate persistent connectivity issues.</p>
+              <div className="space-y-1">
+                {sysAnalytics.mqttBackoffs.map((e, i) => {
+                  const ms = e.details.match(/Backing off for (\d+)ms/)?.[1];
+                  const seconds = ms ? Math.round(parseInt(ms) / 1000) : null;
+                  return (
+                    <div key={i} className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl">
+                      <p className="text-xs font-mono text-slate-400 shrink-0">{fmtDate(e.occurred_at)}</p>
+                      <p className="text-xs text-slate-500 shrink-0">{deviceName(e.device_id)}</p>
+                      <span className="ml-auto text-[10px] font-black text-slate-500">{seconds ? `${seconds}s` : e.details}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          )}
+
           {/* Hardware Errors */}
           {toggles.showHardwareErrors && sysAnalytics.hardwareErrors.length > 0 && (
             <Section title="Hardware Errors" badge={`${sysAnalytics.hardwareErrors.length}`} badgeColor="bg-red-100 text-red-600" defaultOpen={true}>
@@ -981,6 +1105,9 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
                   { key: 'showMemoryWarnings', label: `Memory Warnings (${sysAnalytics.memoryWarnings.length})` },
                   { key: 'showOfflineMarkers', label: `Offline Log Periods (${Math.floor(sysAnalytics.offlineMarkers.length / 2)})` },
                   { key: 'showDeviceConfig', label: `Device Config Boot (${sysAnalytics.deviceConfigs.length})` },
+                  { key: 'showDoorHeldOpen', label: `Door Held Open (${sysAnalytics.doorHeldWarnings.length + sysAnalytics.doorHeldAlarms.length} events)` },
+                  { key: 'showOfflineAccess', label: `Offline Access (${sysAnalytics.offlineAccess.length} events)` },
+                  { key: 'showSfmErrors', label: `SFM Errors (${sysAnalytics.sfmErrors.length} bursts)` },
                 ].filter(item => {
                   // only show items that have data
                   if (item.key === 'showMqttEvents' && sysAnalytics.mqttDrops.length === 0) return false;
@@ -992,6 +1119,9 @@ export const LogAnalyzer: React.FC<Props> = React.memo(function LogAnalyzer({ cu
                   if (item.key === 'showMemoryWarnings' && sysAnalytics.memoryWarnings.length === 0) return false;
                   if (item.key === 'showOfflineMarkers' && sysAnalytics.offlineMarkers.length === 0) return false;
                   if (item.key === 'showDeviceConfig' && sysAnalytics.deviceConfigs.length === 0) return false;
+                  if (item.key === 'showDoorHeldOpen' && sysAnalytics.doorHeldWarnings.length === 0 && sysAnalytics.doorHeldAlarms.length === 0) return false;
+                  if (item.key === 'showOfflineAccess' && sysAnalytics.offlineAccess.length === 0) return false;
+                  if (item.key === 'showSfmErrors' && sysAnalytics.sfmErrors.length === 0) return false;
                   return true;
                 }).map(item => (
                   <label key={item.key} className="flex items-center gap-2 cursor-pointer">
