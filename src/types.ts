@@ -40,7 +40,8 @@ export type HardwareAuthType =
   | 'Card/User Id + Pin'
   | 'Card/User Id + Fingerprint'
   | 'Card/User Id + Fingerprint (Pin Fallback)'
-  | 'Fingerprint Only';
+  | 'Fingerprint Only'
+  | 'Pin Only';
 
 export interface HardwareNode {
   id: string;
@@ -256,7 +257,8 @@ export interface GlobalSettings {
   supportEmail?: string;
   salesEmail?: string;
   globalSowSections?: SowSection[];
-  internalContacts?: Contact[]; // MedixSafe team — seeded into every project
+  internalContacts?: Contact[];
+  keepaliveEnabled?: boolean;  // Pings Supabase every 5 days to prevent free-tier pause // MedixSafe team — seeded into every project
 }
 
 export interface Project {
