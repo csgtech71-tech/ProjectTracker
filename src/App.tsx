@@ -207,6 +207,25 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
+  // Keepalive — pings Supabase on an interval to prevent free-tier pause
+  useEffect(() => {
+    if (!globalSettings.keepaliveEnabled) return;
+    // Ping every 4 days (345600000 ms) — well within the 7-day pause window
+    const INTERVAL = 4 * 24 * 60 * 60 * 1000;
+    const ping = async () => {
+      try {
+        await supabase.from('global_settings').select('id').limit(1);
+        console.log('[keepalive] Supabase ping sent:', new Date().toLocaleString());
+      } catch (e) {
+        console.warn('[keepalive] ping failed:', e);
+      }
+    };
+    // Ping immediately on enable, then on interval
+    ping();
+    const timer = setInterval(ping, INTERVAL);
+    return () => clearInterval(timer);
+  }, [globalSettings.keepaliveEnabled]);
+
   const handleUpdateSettings = useCallback(async (settings: GlobalSettings) => {
     setGlobalSettings(settings);
     try {
@@ -231,15 +250,8 @@ export default function App() {
     { id: 'analyzer', label: 'Analyzer', icon: ScanSearch },
   ];
 
-  if (authLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
-        <RefreshCw size={48} className="text-brand animate-spin mb-4" />
-        <p className="text-[10px] font-black uppercase tracking-[0.4em]">Establishing Secure Link...</p>
-      </div>
-    );
-  }
-
+  // Show login page while loading OR when not authenticated.
+  // Cached users (sessionStorage) skip loading entirely — no flash.
   if (!user) return <LoginPage globalSettings={globalSettings} authError={authError} />;
 
   const NoProjectSelected = () => (
@@ -368,8 +380,8 @@ export default function App() {
 
           <div className="flex items-center gap-3 shrink-0">
             {isSaving && (
-              <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <RefreshCw size={12} className="animate-spin" /> Saving...
+              <div className="flex items-center gap-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Saving
               </div>
             )}
             <div className="text-right">
