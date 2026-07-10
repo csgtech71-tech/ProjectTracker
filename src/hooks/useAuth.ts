@@ -3,31 +3,72 @@ import { supabase } from '../services/supabaseClient';
 import { authService } from '../services/authService';
 import type { AppUser } from '../types';
 
+const CACHE_KEY = 'medixsafe_user_cache';
+
+function getCachedUser(): AppUser | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function setCachedUser(u: AppUser | null) {
+  try {
+    if (u) sessionStorage.setItem(CACHE_KEY, JSON.stringify(u));
+    else sessionStorage.removeItem(CACHE_KEY);
+  } catch {}
+}
+
 async function fetchAppUserById(userId: string, email: string): Promise<AppUser | null> {
   try {
     return await authService.getAppUserById(userId, email);
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<AppUser | null>(null);
+  // Initialise from cache immediately — zero network calls, zero flash
+  const [user, setUser] = useState<AppUser | null>(getCachedUser);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const initialised = useRef(false);
 
+  const setUserAndCache = (u: AppUser | null) => {
+    setCachedUser(u);
+    setUser(u);
+  };
+
   useEffect(() => {
     let mounted = true;
 
-    // Read session from localStorage immediately — no network call
+    // Verify the cached session is still valid — reads from localStorage, no network
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!mounted) return;
-      if (session) {
-        const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
-        if (!mounted) return;
-        if (appUser) setUser(appUser);
+
+      if (!session) {
+        // No session — clear cache and show login
+        setUserAndCache(null);
+        initialised.current = true;
+        setLoading(false);
+        return;
       }
+
+      // Session exists — check if cached user matches
+      const cached = getCachedUser();
+      if (cached && cached.id === session.user.id) {
+        // Cache hit — already set in useState initialiser, just mark done
+        initialised.current = true;
+        setLoading(false);
+        // Refresh profile in background without blocking UI
+        fetchAppUserById(session.user.id, session.user.email ?? '').then(fresh => {
+          if (mounted && fresh) setUserAndCache(fresh);
+        });
+        return;
+      }
+
+      // Cache miss — fetch profile (new session or different user)
+      const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
+      if (!mounted) return;
+      setUserAndCache(appUser);
       initialised.current = true;
       setLoading(false);
     });
@@ -35,56 +76,41 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
-
-        // Skip INITIAL_SESSION — handled by getSession() above
         if (event === 'INITIAL_SESSION') return;
 
         if (event === 'SIGNED_OUT' || !session) {
-          setUser(null);
+          setUserAndCache(null);
           setAuthError(null);
-          // Only set loading false if we somehow reach here before initialised
-          if (!initialised.current) setLoading(false);
+          if (!initialised.current) { initialised.current = true; setLoading(false); }
           return;
         }
 
         if (event === 'SIGNED_IN') {
           const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
           if (!mounted) return;
-          if (appUser) {
-            setAuthError(null);
-            setUser(appUser);
-          } else {
+          if (appUser) { setAuthError(null); setUserAndCache(appUser); }
+          else {
             setAuthError('Account not configured. Contact your administrator.');
             await supabase.auth.signOut();
-            setUser(null);
+            setUserAndCache(null);
           }
-          // Set loading false only if not yet done
-          if (!initialised.current) {
-            initialised.current = true;
-            setLoading(false);
-          }
+          if (!initialised.current) { initialised.current = true; setLoading(false); }
           return;
         }
 
-        // TOKEN_REFRESHED / USER_UPDATED — silently refresh user, never touch loading
         if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-          const appUser = await fetchAppUserById(session.user.id, session.user.email ?? '');
-          if (!mounted) return;
-          if (appUser) {
-            setAuthError(null);
-            setUser(appUser);
-          }
+          fetchAppUserById(session.user.id, session.user.email ?? '').then(appUser => {
+            if (mounted && appUser) setUserAndCache(appUser);
+          });
         }
       }
     );
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, []);
 
   const signOut = async () => {
+    setUserAndCache(null);
     await supabase.auth.signOut();
   };
 
