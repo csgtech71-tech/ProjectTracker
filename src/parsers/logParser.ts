@@ -514,8 +514,7 @@ function detectAuthType(se: RawEvent[]): HardwareAuthType {
 
   // Fingerprint combos
   if (!hasCard && hasFP) return 'Fingerprint Only';
-  if (hasCard && hasFP && hasPIN && hasUserId) return 'Card/User Id + Fingerprint (Pin Fallback)'
-  | 'Pin Only';
+  if (hasCard && hasFP && hasPIN && hasUserId) return 'Card/User Id + Fingerprint (Pin Fallback)';
   if (hasCard && hasFP && hasUserId) return 'Card/User Id/Fingerprint';
   if (hasCard && has1to1 && hasUserId) return 'Card/User Id + Fingerprint';
 
